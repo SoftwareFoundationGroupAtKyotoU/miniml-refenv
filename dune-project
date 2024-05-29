@@ -5,22 +5,21 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github SoftwareFoundationGroupAtKyotoU/miniml-refenv))
 
-(authors "Author Name")
+(authors "Yuito Murase")
 
-(maintainers "Maintainer Name")
+(maintainers "Yuito Murase")
 
-(license LICENSE)
+(license MIT)
 
-(documentation https://url/to/documentation)
+(documentation https://github.com/SoftwareFoundationGroupAtKyotoU/miniml-refenv/)
 
 (package
  (name miniml_refenv)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "toy interpreter for miniml_refenv")
+ (description "toy interpreter for a miniml-style staged language with refined environment classifiers")
  (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
+ (tags))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
