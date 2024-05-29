@@ -1,0 +1,6 @@
+# dune init project miniml_refenv
+# OCAMLPARAM: unset
+# Shared cache: disabled
+# Shared cache location: /home/zeptometer/.cache/dune/db
+# Workspace root: /home/zeptometer/code/miniml_refenv
+# Auto-detected concurrency: 8
