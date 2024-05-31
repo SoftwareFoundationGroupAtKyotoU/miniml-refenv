@@ -1,9 +1,22 @@
 open Base
 
 module Cls = struct
-  type t = int
-  [@@deriving show, eq]
+  type t = Cls of int
+  [@@deriving compare, equal, sexp]
+
+  let counter = Ref.create 0
+
+  let alloc () =
+    let count = !counter in
+    counter := count + 1;
+    Cls(count)
 end
+
+let%test "alloc generate different classifiers" =
+  let cls1 = Cls.alloc () in
+  let cls2 = Cls.alloc () in
+  Cls.equal cls1 cls1 &&
+  not (Cls.equal cls1 cls2)
 
 module Typ = struct
   type t =
@@ -12,7 +25,7 @@ module Typ = struct
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 
   let rec subst_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
     match ty with
@@ -33,11 +46,11 @@ end
 
 module Var = struct
   type t = int
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 end
 
 module Term = struct
-    type t =
+  type t =
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
@@ -45,7 +58,7 @@ module Term = struct
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 end
 
 module Context = struct
@@ -55,7 +68,7 @@ module Context = struct
     | Lock of t * Cls.t * Cls.t
     | Unlock of t * int
     | Cls of t * Cls.t * Cls.t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 
   let rec pop (ctx: t) (diff: int) =
     if diff < 0 then

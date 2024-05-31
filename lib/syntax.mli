@@ -2,7 +2,9 @@ open Base
 
 module Cls: sig
   type t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
+
+  val alloc: unit -> t
 end
 
 module Typ: sig
@@ -12,14 +14,14 @@ module Typ: sig
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 
   val subst_cls: Cls.t -> Cls.t -> t -> t
 end
 
 module Var: sig
   type t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 end
 
 module Term: sig
@@ -31,7 +33,7 @@ module Term: sig
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 end
 
 module Context: sig
@@ -41,7 +43,7 @@ module Context: sig
     | Lock of t * Cls.t * Cls.t
     | Unlock of t * int
     | Cls of t * Cls.t * Cls.t
-  [@@deriving show, eq]
+  [@@deriving compare, equal, sexp]
 
   val current: t -> Cls.t
   val depth: t -> int
