@@ -20,6 +20,6 @@
  (synopsis "toy interpreter for miniml_refenv")
  (description "toy interpreter for a miniml-style staged language with refined environment classifiers")
  (depends ocaml dune)
- (tags))
+ (tags ()))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

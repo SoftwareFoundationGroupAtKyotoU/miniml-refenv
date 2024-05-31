@@ -1,2 +1,4 @@
 (library
- (name miniml_refenv))
+ (name miniml_refenv)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq))
+ (libraries base))
