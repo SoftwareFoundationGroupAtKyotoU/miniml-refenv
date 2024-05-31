@@ -1,0 +1,51 @@
+open Base
+
+module Cls: sig
+  type t
+  [@@deriving show, eq]
+end
+
+module Typ: sig
+  type t =
+    | BaseInt
+    | BaseStr
+    | Func of t * t
+    | Code of Cls.t * t
+    | PolyCls of Cls.t * Cls.t * t
+  [@@deriving show, eq]
+
+  val subst_cls: Cls.t -> Cls.t -> t -> t
+end
+
+module Var: sig
+  type t
+  [@@deriving show, eq]
+end
+
+module Term: sig
+  type t =
+    | Var of Var.t
+    | Lam of Var.t * Typ.t * Cls.t * t
+    | App of t * t
+    | Quo of Cls.t * Cls.t * t
+    | Unq of int * t
+    | PolyCls of Cls.t * Cls.t * t
+    | AppCls of t * Cls.t
+  [@@deriving show, eq]
+end
+
+module Context: sig
+  type t =
+    | Init of Cls.t
+    | Var of t * Var.t * Typ.t * Cls.t
+    | Lock of t * Cls.t * Cls.t
+    | Unlock of t * int
+    | Cls of t * Cls.t * Cls.t
+  [@@deriving show, eq]
+
+  val current: t -> Cls.t
+  val depth: t -> int
+  val domain_cls: t -> Cls.t list
+  val domain_var: t -> Var.t list
+  val lookup_var: t -> Var.t -> (Typ.t * Cls.t) option
+end
