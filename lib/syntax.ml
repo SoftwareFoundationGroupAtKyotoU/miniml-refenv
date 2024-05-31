@@ -82,7 +82,7 @@ end
 let%test_unit "alloc generate different variables" =
   let v1 = Var.alloc () in
   let v2 = Var.alloc () in
-  assert (Var.equal v1 v2);
+  assert (Var.equal v1 v1);
   assert (not (Var.equal v1 v2))
 
 module Term = struct
@@ -98,12 +98,15 @@ module Term = struct
 end
 
 module Context = struct
-  type t =
+  type elm =
     | Init of Cls.t
-    | Var of t * Var.t * Typ.t * Cls.t
-    | Lock of t * Cls.t * Cls.t
-    | Unlock of t * int
-    | Cls of t * Cls.t * Cls.t
+    | Var of Var.t * Typ.t * Cls.t
+    | Lock of Cls.t * Cls.t
+    | Unlock of int
+    | Cls of Cls.t * Cls.t
+  [@@deriving compare, equal, sexp]
+
+  type t = elm list
   [@@deriving compare, equal, sexp]
 
   let rec pop (ctx: t) (diff: int) =
@@ -113,55 +116,60 @@ module Context = struct
       ctx
     else
       (match ctx with
-       | Init _ -> failwith "diff too large"
-       | Var (rest, _, _, _) -> pop rest diff
-       | Lock (rest, _, _) -> pop rest (diff - 1)
-       | Unlock (rest, diff2) -> pop rest (diff + diff2)
-       | Cls (rest, _, _) -> pop rest diff)
+       | Init _ :: _ -> failwith "diff too large"
+       | Lock (_, _) :: rest -> pop rest (diff - 1)
+       | Unlock (diff2) :: rest -> pop rest (diff + diff2)
+       | Var (_, _, _) :: rest
+       | Cls (_, _) :: rest ->
+         pop rest diff
+       | [] -> failwith "unreachable")
 
   let rec current (ctx: t): Cls.t =
     (match ctx with
-     | Init cls -> cls
-     | Var (_, _, _, cls) -> cls
-     | Lock (_, cls, _) -> cls
-     | Unlock (rest, diff) -> current (pop rest diff)
-     | Cls (rest, _, _) -> current rest)
+     | Init cls :: _ -> cls
+     | Var (_, _, cls) :: _ -> cls
+     | Lock (cls, _) :: _ -> cls
+     | Unlock (diff) :: rest -> current (pop rest diff)
+     | Cls (_, _) :: rest -> current rest
+     | [] -> failwith "unreachable")
 
   let rec depth (ctx: t): int =
     (match ctx with
-     | Init _ -> 0
-     | Var (rest, _, _, _) -> depth rest
-     | Lock (rest, _, _) -> depth rest + 1
-     | Unlock (rest, diff) -> depth rest - diff
-     | Cls (rest, _, _) -> depth rest)
+     | Init _ :: _ -> 0
+     | Var (_, _, _) :: rest -> depth rest
+     | Lock (_, _) :: rest -> depth rest + 1
+     | Unlock (diff) :: rest -> depth rest - diff
+     | Cls (_, _) :: rest -> depth rest
+     | [] -> failwith "unreachable")
 
   let domain_cls (ctx: t): Cls.t list =
     let rec recur ctx acc =
       (match ctx with
-       | Init cls -> cls :: acc
-       | Var (rest, _, _, cls) -> recur rest (cls :: acc)
-       | Lock (rest, cls, _) -> recur rest (cls :: acc)
-       | Unlock (rest, _) -> recur rest acc
-       | Cls (rest, cls, _) -> recur rest (cls :: acc)) in
+       | Init cls :: _ -> cls :: acc
+       | Var (_, _, cls) :: rest
+       | Lock (cls, _) :: rest
+       | Cls (cls, _) :: rest -> recur rest (cls :: acc)
+       | Unlock (_) :: rest -> recur rest acc
+       | [] -> failwith "unreachable") in
     recur ctx [] |> List.rev
 
   let domain_var (ctx: t): Var.t list =
     let rec recur ctx acc =
       (match ctx with
-       | Init _ -> []
-       | Var (rest, var, _, _) -> recur rest (var :: acc)
-       | Lock (rest, _, _) -> recur rest acc
-       | Unlock (rest, _) -> recur rest acc
-       | Cls (rest, _, _) -> recur rest acc) in
+       | Init _ :: _ -> []
+       | Var (var, _, _) :: rest -> recur rest (var :: acc)
+       | Lock (_, _) :: rest
+       | Unlock (_) :: rest
+       | Cls (_, _) :: rest -> recur rest acc
+       | [] -> failwith "unreachable") in
     recur ctx [] |> List.rev
 
   let rec lookup_var (ctx: t) (v: Var.t): (Typ.t * Cls.t) option =
     (match ctx with
-     | Init _ -> Option.None
-     | Var (rest, v1, ty, cls) ->
+     | Init _ :: _ -> Option.None
+     | Var (v1, ty, cls) :: rest ->
        if Var.equal v1 v then Option.some (ty, cls) else lookup_var rest v
-     | Lock (rest, _, _) -> lookup_var rest v
-     | Unlock (rest, _) -> lookup_var rest v
-     | Cls (rest, _, _) -> lookup_var rest v)
+     | _ :: rest -> lookup_var rest v
+     | [] -> failwith "unreachable")
 end
 

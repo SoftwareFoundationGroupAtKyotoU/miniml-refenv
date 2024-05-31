@@ -39,12 +39,15 @@ module Term: sig
 end
 
 module Context: sig
-  type t =
+  type elm =
     | Init of Cls.t
-    | Var of t * Var.t * Typ.t * Cls.t
-    | Lock of t * Cls.t * Cls.t
-    | Unlock of t * int
-    | Cls of t * Cls.t * Cls.t
+    | Var of Var.t * Typ.t * Cls.t
+    | Lock of Cls.t * Cls.t
+    | Unlock of int
+    | Cls of Cls.t * Cls.t
+  [@@deriving compare, equal, sexp]
+
+  type t = elm list
   [@@deriving compare, equal, sexp]
 
   val current: t -> Cls.t

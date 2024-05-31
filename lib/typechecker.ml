@@ -2,19 +2,19 @@ open Base
 open Syntax
 
 let rec lookup_ctx_with_cls (ctx: Context.t) (cls: Cls.t): Context.t option =
-  let open Option in
   match ctx with
-  | Context.Init cls1 ->
+  | Context.Init cls1 :: _ ->
     if Cls.equal cls1 cls
     then Some ctx
     else None
-  | Context.Var (rest, _, _, cls1)
-  | Context.Lock (rest, cls1, _)
-  | Context.Cls (rest, cls1, _) ->
+  | Context.Var (_, _, cls1) :: rest
+  | Context.Lock (cls1, _) :: rest
+  | Context.Cls (cls1, _) :: rest ->
     if Cls.equal cls1 cls
     then Some ctx
     else lookup_ctx_with_cls rest cls
-  | Context.Unlock (rest, _) -> lookup_ctx_with_cls rest cls
+  | Context.Unlock (_) :: rest -> lookup_ctx_with_cls rest cls
+  | [] -> failwith "unreachable"
 
 let rec reachable_intuitionistic (ctx: Context.t) (cls1: Cls.t) (cls2: Cls.t): bool =
   if Cls.equal cls1 cls2
@@ -23,14 +23,12 @@ let rec reachable_intuitionistic (ctx: Context.t) (cls1: Cls.t) (cls2: Cls.t): b
     Option.(
       lookup_ctx_with_cls ctx cls2 >>= fun ctx2 ->
       (match ctx2 with
-       | Context.Init _
-       | Context.Unlock (_, _) ->
-         failwith "unreachable"
-       | Context.Var (rest, _, _, _) ->
+       | Context.Var (_, _, _) :: rest ->
          return (reachable_intuitionistic rest cls1 (Context.current rest))
-       | Context.Lock (rest, _, base)
-       | Context.Cls (rest, _, base) ->
-         return (reachable_intuitionistic rest cls1 base))
+       | Context.Lock (_, base) :: rest
+       | Context.Cls (_, base) :: rest ->
+         return (reachable_intuitionistic rest cls1 base)
+       | _ -> failwith "unreachable")
     ) |> Option.value ~default:false
 
 let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
@@ -40,7 +38,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
      Context.lookup_var ctx v >>= fun (ty, cls) ->
      ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
    | Term.Lam (v, ty, cls, body) ->
-     let ctx2 = Context.Var(ctx, v, ty, cls) in
+     let ctx2 = Context.Var(v, ty, cls) :: ctx in
      typeinfer ctx2 body >>= fun ineferred ->
      return (Typ.Func(ty, ineferred))
    | Term.App (func, arg) ->
@@ -54,11 +52,11 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
           None
       | _ -> None)
    | Term.Quo (cls, base, body) ->
-     let ctx2 = Context.Lock(ctx, cls, base) in
+     let ctx2 = Context.Lock(cls, base) :: ctx in
      typeinfer ctx2 body >>= fun inferred ->
      return (Typ.Code(base, inferred))
    | Term.Unq (diff, body) ->
-     let ctx2 = Context.Unlock(ctx, diff) in
+     let ctx2 = Context.Unlock(diff) :: ctx in
      typeinfer ctx2 body >>= fun inferred ->
      (match inferred with
       | Code(base, ty2) ->
@@ -68,7 +66,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
           None
       | _ -> None)
    | Term.PolyCls (cls, base, body) ->
-     let ctx2 = Context.Cls(ctx, cls, base) in
+     let ctx2 = Context.Cls(cls, base) :: ctx in
      typeinfer ctx2 body >>= fun inferred ->
      return (Typ.PolyCls(cls, base, inferred))
    | Term.AppCls (tm, cls) ->
@@ -93,25 +91,26 @@ let typecheck (ctx: Context.t) (tm: Term.t) (ty: Typ.t): bool =
 
 let rec well_formed_context (ctx: Context.t): bool =
   (match ctx with
-   | Context.Init _ -> true
-   | Context.Var (ctx, var, ty, cls) ->
+   | [Context.Init _] -> true
+   | Context.Var (var, ty, cls) :: ctx ->
      well_formed_context ctx &&
      not (var |> List.mem (Context.domain_var ctx) ~equal:Var.equal) &&
      not (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) &&
      well_formed_type ctx ty
-   | Context.Lock (ctx, cls, base) ->
+   | Context.Lock (cls, base) :: ctx ->
      let dom_cls = Context.domain_cls ctx in
      well_formed_context ctx &&
      (base |> List.mem dom_cls ~equal:Cls.equal) &&
      not (cls |> List.mem dom_cls ~equal:Cls.equal)
-   | Context.Unlock (ctx, diff) ->
+   | Context.Unlock (diff) :: ctx ->
      well_formed_context ctx &&
      diff <= (Context.depth ctx)
-   | Context.Cls (ctx, cls, base) ->
+   | Context.Cls (cls, base) :: ctx ->
      let dom_cls = Context.domain_cls ctx in
      well_formed_context ctx &&
      (base |> List.mem dom_cls ~equal:Cls.equal) &&
-     not (cls |> List.mem dom_cls ~equal:Cls.equal))
+     not (cls |> List.mem dom_cls ~equal:Cls.equal)
+   | _ -> failwith "unreachable")
 
 and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
   (match ty with
@@ -124,4 +123,4 @@ and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
      (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) &&
      well_formed_type ctx ty1
    | Typ.PolyCls (cls, base, ty1) ->
-     well_formed_type (Cls(ctx, cls, base)) ty1)
+     well_formed_type (Cls(cls, base) :: ctx) ty1)
