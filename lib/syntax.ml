@@ -12,11 +12,11 @@ module Cls = struct
     Cls(count)
 end
 
-let%test "alloc generate different classifiers" =
+let%test_unit "alloc generate different classifiers" =
   let cls1 = Cls.alloc () in
   let cls2 = Cls.alloc () in
-  Cls.equal cls1 cls1 &&
-  not (Cls.equal cls1 cls2)
+  assert (Cls.equal cls1 cls1);
+  assert (not (Cls.equal cls1 cls2))
 
 module Typ = struct
   type t =
@@ -38,16 +38,52 @@ module Typ = struct
       else
         Code (base, ty1 |> subst_cls from dest)
     | PolyCls (cls, base, ty1) ->
-      if Cls.equal from base then
+      if Cls.equal cls from || Cls.equal cls dest then
+        failwith "unreachable: cls should be fresh"
+      else if Cls.equal from base then
         PolyCls(cls, dest, ty1 |> subst_cls from dest)
       else
         PolyCls(cls, base, ty1 |> subst_cls from dest)
 end
 
+let%test_module "subst classifiers in a type" = (module struct
+  let g1 = Cls.alloc ()
+  let g2 = Cls.alloc ()
+  let g3 = Cls.alloc ()
+
+  let%test_unit "case 1" =
+    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr))) in
+    let sbj = ty |> Typ.subst_cls g1 g2 in
+    [%test_eq: Typ.t] sbj Typ.(Func(Code(g2, BaseInt), Code(g2, BaseStr)))
+
+  let%test_unit "case 2" =
+    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr))) in
+    let sbj = ty |> Typ.subst_cls g2 g3 in
+    [%test_eq: Typ.t] sbj Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr)))
+
+  let%test_unit "case 3" =
+    let ty = Typ.(PolyCls(g1, g2, Code(g2, BaseInt))) in
+    let sbj = ty |> Typ.subst_cls g2 g3 in
+    [%test_eq: Typ.t] sbj Typ.(PolyCls(g1, g3, Code(g3, BaseInt)))
+end)
+
 module Var = struct
-  type t = int
+  type t = Var of int
   [@@deriving compare, equal, sexp]
+
+  let counter = Ref.create 0
+
+  let alloc () =
+    let count = !counter in
+    counter := count + 1;
+    Var(count)
 end
+
+let%test_unit "alloc generate different variables" =
+  let v1 = Var.alloc () in
+  let v2 = Var.alloc () in
+  assert (Var.equal v1 v2);
+  assert (not (Var.equal v1 v2))
 
 module Term = struct
   type t =

@@ -22,6 +22,8 @@ end
 module Var: sig
   type t
   [@@deriving compare, equal, sexp]
+
+  val alloc: unit -> t
 end
 
 module Term: sig
