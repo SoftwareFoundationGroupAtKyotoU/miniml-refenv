@@ -173,3 +173,35 @@ module Context = struct
      | [] -> failwith "unreachable")
 end
 
+let%test_module "context" = (module struct
+  open Context
+
+  let g1 = Cls.alloc ()
+  let g2 = Cls.alloc ()
+  let g3 = Cls.alloc ()
+  let g4 = Cls.alloc ()
+
+  let v1 = Var.alloc ()
+
+  let ctx1 = [Init g1]
+  let ctx2 = [Init g1; Var(v1, BaseInt, g2)] |> List.rev
+  let ctx3 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1)] |> List.rev
+  let ctx4 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0)] |> List.rev
+  let ctx5 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0); Unlock(1)] |> List.rev
+  let ctx6 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2); Unlock(2)] |> List.rev
+  let ctx7 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2); Unlock(1); Unlock(1)] |> List.rev
+  let ctx8 = [Init g1; Var(v1, BaseInt, g2); Cls(g3, g2)] |> List.rev
+  let ctx9 = [Init g1; Lock(g2, g1); Unlock(1); Lock(g3, g2); Unlock(1)] |> List.rev
+
+  let%test_unit "get current classifier" =
+    [%test_eq: Cls.t] (current ctx1) g1;
+    [%test_eq: Cls.t] (current ctx2) g2;
+    [%test_eq: Cls.t] (current ctx3) g3;
+    [%test_eq: Cls.t] (current ctx4) g3;
+    [%test_eq: Cls.t] (current ctx5) g2;
+    [%test_eq: Cls.t] (current ctx6) g2;
+    [%test_eq: Cls.t] (current ctx7) g2;
+    [%test_eq: Cls.t] (current ctx8) g2;
+    [%test_eq: Cls.t] (current ctx9) g1;
+
+end)
