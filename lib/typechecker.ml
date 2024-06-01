@@ -150,6 +150,7 @@ let rec reachable_intuitionistic (ctx: Context.t) (cls1: Cls.t) (cls2: Cls.t): b
     Option.(
       lookup_ctx_with_cls ctx cls2 >>= fun ctx2 ->
       (match ctx2 with
+       | Context.Init _ :: _ -> return false
        | Context.Var (_, _, _) :: rest ->
          return (reachable_intuitionistic rest cls1 (Context.current rest))
        | Context.Lock (_, base) :: rest
@@ -191,59 +192,148 @@ let%test_module "reachable_intuitionistic" = (module struct
     assert (reachable_intuitionistic ctx g3 g4);
     assert (reachable_intuitionistic ctx g1 g4);
     assert (reachable_intuitionistic ctx g1 g5)
+
+  let%test_unit "not reachable" =
+    assert (not (reachable_intuitionistic ctx g2 g1));
+    assert (not (reachable_intuitionistic ctx g3 g1));
+    assert (not (reachable_intuitionistic ctx g4 g3))
 end)
 
 let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
-  let open Option in
-  (match tm with
-   | Term.Var v ->
-     Context.lookup_var ctx v >>= fun (ty, cls) ->
-     ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
-   | Term.Lam (v, ty, cls, body) ->
-     let ctx2 = Context.Var(v, ty, cls) :: ctx in
-     typeinfer ctx2 body >>= fun ineferred ->
-     return (Typ.Func(ty, ineferred))
-   | Term.App (func, arg) ->
-     typeinfer ctx func >>= fun tyfunc ->
-     typeinfer ctx arg >>= fun tyarg ->
-     (match tyfunc with
-      | Func(tyfunc1, tyfunc2) ->
-        if Typ.equal tyfunc1 tyarg then
-          return tyfunc2
-        else
-          None
-      | _ -> None)
-   | Term.Quo (cls, base, body) ->
-     let ctx2 = Context.Lock(cls, base) :: ctx in
-     typeinfer ctx2 body >>= fun inferred ->
-     return (Typ.Code(base, inferred))
-   | Term.Unq (diff, body) ->
-     let ctx2 = Context.Unlock(diff) :: ctx in
-     typeinfer ctx2 body >>= fun inferred ->
-     (match inferred with
-      | Code(base, ty2) ->
-        if reachable_intuitionistic ctx base (Context.current ctx) then
-          return ty2
-        else
-          None
-      | _ -> None)
-   | Term.PolyCls (cls, base, body) ->
-     let ctx2 = Context.Cls(cls, base) :: ctx in
-     typeinfer ctx2 body >>= fun inferred ->
-     return (Typ.PolyCls(cls, base, inferred))
-   | Term.AppCls (tm, cls) ->
-     if cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal then
-       typeinfer ctx tm >>= fun inferred ->
-       (match inferred with
-        | PolyCls(cls1, base, ty1) ->
-          if reachable_intuitionistic ctx base cls then
-            return (ty1 |> Typ.subst_cls cls1 cls)
+  if not (well_formed_context ctx) then
+    Option.None
+  else
+    let open Option in
+    (match tm with
+     | Term.Var v ->
+       Context.lookup_var ctx v >>= fun (ty, cls) ->
+       ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
+     | Term.Lam (v, ty, cls, body) ->
+       let ctx2 = Context.Var(v, ty, cls) :: ctx in
+       typeinfer ctx2 body >>= fun ineferred ->
+       return (Typ.Func(ty, ineferred))
+     | Term.App (func, arg) ->
+       typeinfer ctx func >>= fun tyfunc ->
+       typeinfer ctx arg >>= fun tyarg ->
+       (match tyfunc with
+        | Func(tyfunc1, tyfunc2) ->
+          if Typ.equal tyfunc1 tyarg then
+            return tyfunc2
           else
             None
         | _ -> None)
-     else
-       None
-  )
+     | Term.Quo (cls, base, body) ->
+       let ctx2 = Context.Lock(cls, base) :: ctx in
+       typeinfer ctx2 body >>= fun inferred ->
+       return (Typ.Code(base, inferred))
+     | Term.Unq (diff, body) ->
+       let ctx2 = Context.Unlock(diff) :: ctx in
+       typeinfer ctx2 body >>= fun inferred ->
+       (match inferred with
+        | Code(base, ty2) ->
+          if reachable_intuitionistic ctx base (Context.current ctx) then
+            return ty2
+          else
+            None
+        | _ -> None)
+     | Term.PolyCls (cls, base, body) ->
+       let ctx2 = Context.Cls(cls, base) :: ctx in
+       typeinfer ctx2 body >>= fun inferred ->
+       return (Typ.PolyCls(cls, base, inferred))
+     | Term.AppCls (tm, cls) ->
+       if cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal then
+         typeinfer ctx tm >>= fun inferred ->
+         (match inferred with
+          | PolyCls(cls1, base, ty1) ->
+            if reachable_intuitionistic ctx base cls then
+              return (ty1 |> Typ.subst_cls cls1 cls)
+            else
+              None
+          | _ -> None)
+       else
+         None
+    )
+
+let%test_module "typeinfer" = (module struct
+  let g1 = Cls.alloc ()
+  let g2 = Cls.alloc ()
+  let g3 = Cls.alloc ()
+  let g4 = Cls.alloc ()
+  let g5 = Cls.alloc ()
+  let g6 = Cls.alloc ()
+
+  let v1 = Var.alloc ()
+  let v2 = Var.alloc ()
+
+  let%test_unit "failure on ill-formed context" =
+    [%test_eq: Typ.t option]
+      (typeinfer [] Term.(Lam(v1, BaseInt, g2, Var(v1))))
+      Option.None
+
+  let%test_unit "success" =
+    [%test_eq: Typ.t option]
+      (typeinfer
+         Context.[Init g1]
+         Term.(Lam(v1, BaseInt, g2, Var(v1))))
+      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Quo(g3, g2, Var(v1))))
+      (Option.Some(Typ.(Code(g2, BaseInt))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Quo(g3, g1, Unq(1, Var(v1)))))
+      (Option.Some(Typ.(Code(g1, BaseInt))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Quo(g3, g2, Unq(0, Var(v1)))))
+      (Option.Some(Typ.(Code(g2, BaseInt))));
+    [%test_eq: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(Lam(v1, PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))), g2,
+                   Quo(g3, g1, Lam(v2, BaseInt, g4,
+                                   Unq(1, App(AppCls(Var(v1), g4), Quo(g5, g4, Var(v2)))))))))
+      (Option.Some(Typ.(Func(
+           PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))),
+           Code(g1, Func(BaseInt, BaseInt))))));
+    [%test_eq: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(PolyCls(g2, g1, Lam(v1, Code(g2, Code(g1, BaseInt)), g3,
+                                  Quo(g4, g2, Unq(0, Unq(1, Var(v1))))))))
+      (Option.Some(Typ.(
+           PolyCls(g2, g1, Func(Code(g2, Code(g1, BaseInt)), Code(g2, BaseInt))))));
+    [%test_eq: Typ.t option] (* K4-like axiom \g2:>g1.\g6:>g1.<int@g2>-><<int@g2>@g6> *)
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(PolyCls(g2, g1, PolyCls(g6, g1,
+                                       Lam(v1, Code(g2, BaseInt), g3,
+                                           Quo(g4, g6, Quo(g5, g2, Unq(2, Var(v1)))))))))
+      (Option.Some(Typ.(
+             PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))))
+
+
+  let%test_unit "failure" =
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Quo(g3, g1, Unq(0, Var(v1)))))
+      Option.None;
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Var(v2)))
+      Option.None;
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Unq(2, Var(v1))))
+      Option.None;
+end)
 
 let typecheck (ctx: Context.t) (tm: Term.t) (ty: Typ.t): bool =
   Option.(
