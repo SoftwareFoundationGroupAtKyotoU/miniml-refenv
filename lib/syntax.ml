@@ -192,6 +192,7 @@ let%test_module "context" = (module struct
   let ctx7 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2); Unlock(1); Unlock(1)] |> List.rev
   let ctx8 = [Init g1; Var(v1, BaseInt, g2); Cls(g3, g2)] |> List.rev
   let ctx9 = [Init g1; Lock(g2, g1); Unlock(1); Lock(g3, g2); Unlock(1)] |> List.rev
+  let ctx10 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2)] |> List.rev
 
   let%test_unit "get current classifier" =
     [%test_eq: Cls.t] (current ctx1) g1;
@@ -202,6 +203,18 @@ let%test_module "context" = (module struct
     [%test_eq: Cls.t] (current ctx6) g2;
     [%test_eq: Cls.t] (current ctx7) g2;
     [%test_eq: Cls.t] (current ctx8) g2;
-    [%test_eq: Cls.t] (current ctx9) g1;
+    [%test_eq: Cls.t] (current ctx9) g1
+
+  let%test_unit "get depth" =
+    [%test_eq: int] (depth ctx1) 0;
+    [%test_eq: int] (depth ctx2) 0;
+    [%test_eq: int] (depth ctx3) 1;
+    [%test_eq: int] (depth ctx4) 1;
+    [%test_eq: int] (depth ctx5) 0;
+    [%test_eq: int] (depth ctx6) 0;
+    [%test_eq: int] (depth ctx7) 0;
+    [%test_eq: int] (depth ctx8) 0;
+    [%test_eq: int] (depth ctx9) 0;
+    [%test_eq: int] (depth ctx10) 2;
 
 end)
