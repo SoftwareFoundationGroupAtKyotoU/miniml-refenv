@@ -200,7 +200,7 @@ let%test_module "context" = (module struct
   let ctx9 = [Init g1; Lock(g2, g1); Unlock(1); Lock(g3, g2); Unlock(1)] |> List.rev
   let ctx10 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2)] |> List.rev
   let ctx11 = [Init g1; Var(v1, BaseInt, g2); Var(v2, BaseStr, g3); Lock(g4, g1)] |> List.rev
-  let ctx12 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseInt, g4); Unlock(1); Var(v3, BaseInt, g5); Lock(g6, g2); Var(v4, BaseInt, g7); Unlock(1)] |> List.rev
+  let ctx12 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseStr, g4); Unlock(1); Var(v3, BaseInt, g5); Lock(g6, g2); Var(v4, BaseInt, g7); Unlock(1)] |> List.rev
 
   let%test_unit "get current classifier" =
     [%test_eq: Cls.t] (current ctx1) g1;
@@ -240,6 +240,12 @@ let%test_module "context" = (module struct
     [%test_eq: Var.t list] (domain_var ctx1) [];
     [%test_eq: Var.t list] (domain_var ctx2) [v1];
     [%test_eq: Var.t list] (domain_var ctx11) [v2; v1];
-    [%test_eq: Var.t list] (domain_var ctx12) [v4; v3; v2; v1];
+    [%test_eq: Var.t list] (domain_var ctx12) [v4; v3; v2; v1]
 
+  let%test_unit "lookup a variable" =
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx1 v1) Option.None;
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v1) (Option.Some(BaseInt, g2));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v2) Option.None;
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v2) (Option.Some(BaseStr, g4));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v3) (Option.Some(BaseInt, g5));
 end)
