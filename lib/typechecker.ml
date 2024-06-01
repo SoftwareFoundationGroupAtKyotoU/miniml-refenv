@@ -104,13 +104,14 @@ let rec well_formed_context (ctx: Context.t): bool =
      not (cls |> List.mem dom_cls ~equal:Cls.equal)
    | Context.Unlock (diff) :: ctx ->
      well_formed_context ctx &&
+     diff >= 0 &&
      diff <= (Context.depth ctx)
    | Context.Cls (cls, base) :: ctx ->
      let dom_cls = Context.domain_cls ctx in
      well_formed_context ctx &&
      (base |> List.mem dom_cls ~equal:Cls.equal) &&
      not (cls |> List.mem dom_cls ~equal:Cls.equal)
-   | _ -> failwith "unreachable")
+   | _ -> false)
 
 and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
   (match ty with
@@ -124,3 +125,50 @@ and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
      well_formed_type ctx ty1
    | Typ.PolyCls (cls, base, ty1) ->
      well_formed_type (Cls(cls, base) :: ctx) ty1)
+
+let%test_module "well_formed_context" = (module struct
+  open Context
+
+  let g1 = Cls.alloc ()
+  let g2 = Cls.alloc ()
+  let g3 = Cls.alloc ()
+
+  let v1 = Var.alloc ()
+  let v2 = Var.alloc ()
+
+  let%test_unit "well-formed contexts" =
+    assert (well_formed_context [Init g1]);
+    assert (well_formed_context ([Init g1; Var(v1, BaseInt, g2)] |> List.rev));
+    assert (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v2, BaseInt, g3)] |> List.rev));
+    assert (well_formed_context ([Init g1; Lock(g2, g1); Var(v1, BaseInt, g3)] |> List.rev));
+    assert (well_formed_context ([Init g1; Lock(g2, g1); Lock(g3, g1)] |> List.rev));
+    assert (well_formed_context ([Init g1; Lock(g2, g1); Unlock(1)] |> List.rev));
+    assert (well_formed_context ([Init g1; Lock(g2, g1); Unlock(0)] |> List.rev));
+    assert (well_formed_context ([Init g1; Cls(g2, g1)] |> List.rev))
+
+  let%test_unit "ill-formed contexts : case Init" =
+    assert (not (well_formed_context []));
+    assert (not (well_formed_context [Init g1; Init g2]))
+
+  let%test_unit "ill-formed contexts : case Var" =
+    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g1)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Var(v1, Code(g2, BaseInt), g2)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v1, BaseInt, g3)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v2, BaseInt, g2)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g1); Var(v2, BaseInt, g2)] |> List.rev)))
+
+  let%test_unit "ill-formed contexts : case Lock" =
+    assert (not (well_formed_context ([Init g1; Lock(g2, g3)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Lock(g1, g1)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Lock(g3, g3)] |> List.rev)))
+
+  let%test_unit "ill-formed contexts : case Unlock" =
+    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(2)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(44)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(-1)] |> List.rev)))
+
+  let%test_unit "ill-formed contexts : case Cls" =
+    assert (not (well_formed_context ([Init g1; Cls(g2, g2)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Cls(g1, g1)] |> List.rev)));
+    assert (not (well_formed_context ([Init g1; Cls(g2, g1); Cls(g1, g2)] |> List.rev)));
+end)
