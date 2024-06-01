@@ -114,6 +114,7 @@ let rec well_formed_context (ctx: Context.t): bool =
    | _ -> false)
 
 and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
+  well_formed_context ctx &&
   (match ty with
    | Typ.BaseInt -> true
    | Typ.BaseStr -> true
@@ -171,4 +172,37 @@ let%test_module "well_formed_context" = (module struct
     assert (not (well_formed_context ([Init g1; Cls(g2, g2)] |> List.rev)));
     assert (not (well_formed_context ([Init g1; Cls(g1, g1)] |> List.rev)));
     assert (not (well_formed_context ([Init g1; Cls(g2, g1); Cls(g1, g2)] |> List.rev)));
+end)
+
+let%test_module "well_formed_type" = (module struct
+  let g1 = Cls.alloc ()
+  let g2 = Cls.alloc ()
+  let g3 = Cls.alloc ()
+  let g4 = Cls.alloc ()
+  let g5 = Cls.alloc ()
+  let g6 = Cls.alloc ()
+
+  let v1 = Var.alloc ()
+  let v2 = Var.alloc ()
+
+  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseStr, g4); Unlock(1)] |> List.rev
+
+  let%test_unit "confirm that ctx is well-formed" =
+    assert (well_formed_context ctx)
+
+  let%test_unit "type is ill-formed under any ill-formed context" =
+    assert (not (well_formed_type [] BaseInt))
+
+  let%test_unit "well-formed types" =
+    assert (well_formed_type ctx BaseInt);
+    assert (well_formed_type ctx BaseStr);
+    assert (well_formed_type ctx (Func(BaseStr, BaseInt)));
+    assert (well_formed_type ctx (Code(g2, BaseInt)));
+    assert (well_formed_type ctx (PolyCls(g5, g2, BaseInt)));
+    assert (well_formed_type ctx (PolyCls(g5, g2, Code(g5, BaseStr))))
+
+  let%test_unit "ill-formed types" =
+    assert (not (well_formed_type ctx (Code(g5, BaseInt))));
+    assert (not (well_formed_type ctx (PolyCls(g1, g2, BaseInt))));
+    assert (not (well_formed_type ctx (PolyCls(g5, g2, Code(g6, BaseStr)))))
 end)
