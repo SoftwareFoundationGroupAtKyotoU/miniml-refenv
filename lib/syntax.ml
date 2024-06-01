@@ -215,6 +215,17 @@ let%test_module "context" = (module struct
     [%test_eq: int] (depth ctx7) 0;
     [%test_eq: int] (depth ctx8) 0;
     [%test_eq: int] (depth ctx9) 0;
-    [%test_eq: int] (depth ctx10) 2;
+    [%test_eq: int] (depth ctx10) 2
+
+  let%test_unit "get cls domain" =
+    [%test_eq: Cls.t list] (domain_cls ctx1) [g1];
+    [%test_eq: Cls.t list] (domain_cls ctx2) [g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx3) [g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx4) [g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx5) [g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx6) [g4; g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx8) [g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx9) [g3; g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx10) [g4; g3; g2; g1]
 
 end)
