@@ -48,6 +48,8 @@ end
 
 module Term: sig
   type t =
+    | Int of int
+    | Bool of bool
     | Const of Const.t
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t

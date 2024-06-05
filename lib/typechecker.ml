@@ -205,6 +205,8 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
   else
     let open Option in
     (match tm with
+     | Term.Int _ -> Option.some Typ.BaseInt
+     | Term.Bool _ -> Option.some Typ.BaseBool
      | Term.Const c -> Option.some (Const.typeOf c)
      | Term.Var v ->
        Context.lookup_var ctx v >>= fun (ty, cls) ->
@@ -290,6 +292,16 @@ let%test_module "typeinfer" = (module struct
       Option.None
 
   let%test_unit "success" =
+    [%test_eq: Typ.t option]
+      (typeinfer
+         Context.[Init g1]
+         Term.(Int 1))
+      (Option.Some(Typ.BaseInt));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         Context.[Init g1]
+         Term.(Bool false))
+      (Option.Some(Typ.BaseBool));
     [%test_eq: Typ.t option]
       (typeinfer
          Context.[Init g1]
@@ -384,7 +396,7 @@ let%test_module "typeinfer" = (module struct
       (typeinfer
          (Context.[Init g1] |> List.rev)
          Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
-      Option.None;
+      Option.None
 
 end)
 
