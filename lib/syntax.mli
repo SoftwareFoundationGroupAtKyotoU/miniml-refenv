@@ -59,6 +59,7 @@ module Term: sig
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
     | Fix of t
+    | If of t * t * t
   [@@deriving compare, equal, sexp]
 end
 

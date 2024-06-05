@@ -272,7 +272,15 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
           else
             Option.None
         | _ -> Option.None
-       ))
+       )
+     | Term.If(cond, thenn, elsee) ->
+       typeinfer ctx cond >>= fun tycond ->
+       typeinfer ctx thenn >>= fun tythen ->
+       typeinfer ctx elsee >>= fun tyelse ->
+       if Typ.equal tycond Typ.BaseBool && Typ.equal tythen tyelse then
+         return tythen
+       else
+         Option.None)
 
 let%test_module "typeinfer" = (module struct
   let g1 = Cls.alloc ()
@@ -415,6 +423,23 @@ let%test_module "typeinfer" = (module struct
          (Context.[Init g1] |> List.rev)
          Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
       ~expect:Option.None
+
+    let%test_unit "if-statement" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           (Context.[Init g1] |> List.rev)
+           Term.(If(Bool(true), Int(1), Int(2))))
+        ~expect:(Option.Some(Typ.(BaseInt)));
+      [%test_result: Typ.t option]
+        (typeinfer
+           (Context.[Init g1] |> List.rev)
+           Term.(If(Bool(true), Int(1), Bool(false))))
+        ~expect:(Option.None);
+      [%test_result: Typ.t option]
+        (typeinfer
+           (Context.[Init g1] |> List.rev)
+           Term.(If(Int(1), Int(1), Int(2))))
+        ~expect:(Option.None)
 
     let%test_unit "complex cases: axioms" =
     [%test_result: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
