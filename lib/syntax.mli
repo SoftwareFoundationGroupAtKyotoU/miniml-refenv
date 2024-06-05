@@ -54,6 +54,7 @@ module Term: sig
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
+    | Fix of t
   [@@deriving compare, equal, sexp]
 end
 
