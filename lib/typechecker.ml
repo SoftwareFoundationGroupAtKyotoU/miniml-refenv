@@ -287,116 +287,160 @@ let%test_module "typeinfer" = (module struct
   let v3 = Var.alloc ()
 
   let%test_unit "failure on ill-formed context" =
-    [%test_eq: Typ.t option]
+    [%test_result: Typ.t option]
       (typeinfer [] Term.(Lam(v1, BaseInt, g2, Var(v1))))
-      Option.None
+      ~expect:Option.None
 
-  let%test_unit "success" =
-    [%test_eq: Typ.t option]
+  let%test_unit "literals" =
+    [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Int 1))
-      (Option.Some(Typ.BaseInt));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.BaseInt));
+    [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Bool false))
-      (Option.Some(Typ.BaseBool));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.BaseBool))
+
+  let%test_unit "constants" =
+    [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Const Const.Plus))
-      (Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
+    [%test_result: Typ.t option]
       (typeinfer
          (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
          Term.(App(App(Const(Const.Plus), Var(v1)), Var(v1))))
-      (Option.Some(Typ.BaseInt));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.BaseInt))
+
+  let%test_unit "variables" =
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Var(v2)))
+      ~expect:Option.None;
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Unq(2, Var(v1))))
+      ~expect:Option.None
+
+  let%test_unit "lambda" =
+    [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Lam(v1, BaseInt, g2, Var(v1))))
-      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         Context.[Init g1]
+         Term.(Lam(v1, Code(g3, BaseInt) (* This type is ill-formed *), g2,
+                   Var(v1))))
+      ~expect:(Option.None)
+
+  let%test_unit "quo and unq" =
+    [%test_result: Typ.t option]
       (typeinfer
          (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
          Term.(Quo(g3, g2, Var(v1))))
-      (Option.Some(Typ.(Code(g2, BaseInt))));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
+    [%test_result: Typ.t option]
       (typeinfer
          (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
          Term.(Quo(g3, g1, Unq(1, Var(v1)))))
-      (Option.Some(Typ.(Code(g1, BaseInt))));
-    [%test_eq: Typ.t option]
+      ~expect:(Option.Some(Typ.(Code(g1, BaseInt))));
+    [%test_result: Typ.t option]
       (typeinfer
          (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
          Term.(Quo(g3, g2, Unq(0, Var(v1)))))
-      (Option.Some(Typ.(Code(g2, BaseInt))));
-    [%test_eq: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
+      ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Term.(Quo(g3, g1, Unq(0, Var(v1)))))
+      ~expect:Option.None
+
+  let%test_unit "polymorphic contexts" =
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(PolyCls(g2, g1, Quo(g3, g2, Int(1)))))
+      ~expect:(Option.Some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(PolyCls(g1, g1, Quo(g3, g1, Int(1)))))
+      ~expect:(Option.None);
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(PolyCls(g2, g3, Quo(g4, g1, Int(1)))))
+      ~expect:(Option.None)
+
+    let%test_unit "context applications" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           (Context.[Init g1; Var(v1, PolyCls(g2, g1, Code(g2, BaseInt)), g3); Cls(g4, g3)] |> List.rev)
+           Term.(AppCls(Var(v1), g4)))
+        ~expect:(Option.Some(Typ.(Code(g4, BaseInt))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           (Context.[Init g1; Var(v1, BaseInt, g2); Var(v2, PolyCls(g3, g2, Code(g3, BaseInt)), g4)] |> List.rev)
+           Term.(AppCls(Var(v2), g1)))
+        ~expect:(Option.None)
+
+  let%test_unit "fix" =
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
+                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
+      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
+                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
+      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
+                       PolyCls(g5, g2, Var(v1))))))
+      ~expect:(Option.Some(Typ.(PolyCls(g6, g2, BaseInt))));
+    [%test_result: Typ.t option]
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
+      ~expect:Option.None
+
+    let%test_unit "complex cases: axioms" =
+    [%test_result: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
       (typeinfer
          (Context.[Init g1] |> List.rev)
          Term.(Lam(v1, PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))), g2,
                    Quo(g3, g1, Lam(v2, BaseInt, g4,
                                    Unq(1, App(AppCls(Var(v1), g4), Quo(g5, g4, Var(v2)))))))))
-      (Option.Some(Typ.(Func(
-           PolyCls(g6, g1, Func(Code(g6, BaseInt), Code(g6, BaseInt))),
-           Code(g1, Func(BaseInt, BaseInt))))));
-    [%test_eq: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
+      ~expect:(Option.Some(Typ.(Func(
+          PolyCls(g6, g1, Func(Code(g6, BaseInt), Code(g6, BaseInt))),
+          Code(g1, Func(BaseInt, BaseInt))))));
+    [%test_result: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
       (typeinfer
          (Context.[Init g1] |> List.rev)
          Term.(PolyCls(g2, g1, Lam(v1, Code(g2, Code(g1, BaseInt)), g3,
                                   Quo(g4, g2, Unq(0, Unq(1, Var(v1))))))))
-      (Option.Some(Typ.(
-           PolyCls(g2, g1, Func(Code(g2, Code(g1, BaseInt)), Code(g2, BaseInt))))));
-    [%test_eq: Typ.t option] (* K4-like axiom \g2:>g1.\g6:>g1.<int@g2>-><<int@g2>@g6> *)
+      ~expect:(Option.Some(Typ.(
+          PolyCls(g2, g1, Func(Code(g2, Code(g1, BaseInt)), Code(g2, BaseInt))))));
+    [%test_result: Typ.t option] (* K4-like axiom \g2:>g1.\g6:>g1.<int@g2>-><<int@g2>@g6> *)
       (typeinfer
          (Context.[Init g1] |> List.rev)
          Term.(PolyCls(g2, g1, PolyCls(g6, g1,
                                        Lam(v1, Code(g2, BaseInt), g3,
                                            Quo(g4, g6, Quo(g5, g2, Unq(2, Var(v1)))))))))
-      (Option.Some(Typ.(
-           PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))));
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
-         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
-                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
-      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
-         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
-                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
-      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
-         Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
-                       PolyCls(g5, g2, Var(v1))))))
-      (Option.Some(Typ.(PolyCls(g6, g2, BaseInt))))
-
-
-  let%test_unit "failure" =
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
-         Term.(Quo(g3, g1, Unq(0, Var(v1)))))
-      Option.None;
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
-         Term.(Var(v2)))
-      Option.None;
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
-         Term.(Unq(2, Var(v1))))
-      Option.None;
-    [%test_eq: Typ.t option]
-      (typeinfer
-         (Context.[Init g1] |> List.rev)
-         Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
-      Option.None
+      ~expect:(Option.Some(Typ.(
+          PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))))
 
 end)
 
