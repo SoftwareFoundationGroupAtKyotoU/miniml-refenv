@@ -29,7 +29,7 @@ and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
   well_formed_context ctx &&
   (match ty with
    | Typ.BaseInt -> true
-   | Typ.BaseStr -> true
+   | Typ.BaseBool -> true
    | Typ.Func (ty1, ty2) ->
      well_formed_type ctx ty1 &&
      well_formed_type ctx ty2
@@ -99,7 +99,7 @@ let%test_module "well_formed_type" = (module struct
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()
 
-  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseStr, g4); Unlock(1)] |> List.rev
+  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1)] |> List.rev
 
   let%test_unit "confirm that ctx is well-formed" =
     assert (well_formed_context ctx)
@@ -109,16 +109,16 @@ let%test_module "well_formed_type" = (module struct
 
   let%test_unit "well-formed types" =
     assert (well_formed_type ctx BaseInt);
-    assert (well_formed_type ctx BaseStr);
-    assert (well_formed_type ctx (Func(BaseStr, BaseInt)));
+    assert (well_formed_type ctx BaseBool);
+    assert (well_formed_type ctx (Func(BaseBool, BaseInt)));
     assert (well_formed_type ctx (Code(g2, BaseInt)));
     assert (well_formed_type ctx (PolyCls(g5, g2, BaseInt)));
-    assert (well_formed_type ctx (PolyCls(g5, g2, Code(g5, BaseStr))))
+    assert (well_formed_type ctx (PolyCls(g5, g2, Code(g5, BaseBool))))
 
   let%test_unit "ill-formed types" =
     assert (not (well_formed_type ctx (Code(g5, BaseInt))));
     assert (not (well_formed_type ctx (PolyCls(g1, g2, BaseInt))));
-    assert (not (well_formed_type ctx (PolyCls(g5, g2, Code(g6, BaseStr)))))
+    assert (not (well_formed_type ctx (PolyCls(g5, g2, Code(g6, BaseBool)))))
 end)
 
 let rec lookup_ctx_with_cls (ctx: Context.t) (cls: Cls.t): Context.t option =
@@ -171,7 +171,7 @@ let%test_module "reachable_intuitionistic" = (module struct
   let v2 = Var.alloc ()
   let v3 = Var.alloc ()
 
-  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseStr, g4); Unlock(1); Var(v3, BaseInt, g5)] |> List.rev
+  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1); Var(v3, BaseInt, g5)] |> List.rev
 
   let%test_unit "confirm that ctx is well-formed" =
     assert (well_formed_context ctx)
@@ -205,6 +205,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
   else
     let open Option in
     (match tm with
+     | Term.Const c -> Option.some (Const.typeOf c)
      | Term.Var v ->
        Context.lookup_var ctx v >>= fun (ty, cls) ->
        ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
@@ -274,6 +275,16 @@ let%test_module "typeinfer" = (module struct
     [%test_eq: Typ.t option]
       (typeinfer
          Context.[Init g1]
+         Term.(Const Const.Plus))
+      (Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(App(App(Const(Const.Plus), Var(v1)), Var(v1))))
+      (Option.Some(Typ.BaseInt));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         Context.[Init g1]
          Term.(Lam(v1, BaseInt, g2, Var(v1))))
       (Option.Some(Typ.(Func(BaseInt, BaseInt))));
     [%test_eq: Typ.t option]
@@ -314,7 +325,7 @@ let%test_module "typeinfer" = (module struct
                                        Lam(v1, Code(g2, BaseInt), g3,
                                            Quo(g4, g6, Quo(g5, g2, Unq(2, Var(v1)))))))))
       (Option.Some(Typ.(
-             PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))))
+           PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))))
 
 
   let%test_unit "failure" =

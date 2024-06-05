@@ -10,7 +10,7 @@ end
 module Typ: sig
   type t =
     | BaseInt
-    | BaseStr
+    | BaseBool
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
@@ -26,8 +26,27 @@ module Var: sig
   val alloc: unit -> t
 end
 
+module Const : sig
+
+  type t =
+    (* Arithmetic operators *)
+    | Plus
+    | Minus
+    | Mult
+    | GE
+    (* Boolean operators *)
+    | Neg
+    | And
+    | Or
+  [@@deriving compare, equal, sexp]
+
+  val typeOf: t -> Typ.t
+
+end
+
 module Term: sig
   type t =
+    | Const of Const.t
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t

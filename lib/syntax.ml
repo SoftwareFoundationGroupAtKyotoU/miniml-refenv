@@ -21,7 +21,7 @@ let%test_unit "alloc generate different classifiers" =
 module Typ = struct
   type t =
     | BaseInt
-    | BaseStr
+    | BaseBool
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
@@ -30,7 +30,7 @@ module Typ = struct
   let rec subst_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
     match ty with
     | BaseInt -> BaseInt
-    | BaseStr -> BaseStr
+    | BaseBool -> BaseBool
     | Func (ty1, ty2) -> Func(ty1 |> subst_cls from dest, ty2 |> subst_cls from dest)
     | Code (base, ty1) ->
       if Cls.equal from base then
@@ -52,14 +52,14 @@ let%test_module "subst classifiers in a type" = (module struct
   let g3 = Cls.alloc ()
 
   let%test_unit "case 1" =
-    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr))) in
+    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool))) in
     let sbj = ty |> Typ.subst_cls g1 g2 in
-    [%test_eq: Typ.t] sbj Typ.(Func(Code(g2, BaseInt), Code(g2, BaseStr)))
+    [%test_eq: Typ.t] sbj Typ.(Func(Code(g2, BaseInt), Code(g2, BaseBool)))
 
   let%test_unit "case 2" =
-    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr))) in
+    let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool))) in
     let sbj = ty |> Typ.subst_cls g2 g3 in
-    [%test_eq: Typ.t] sbj Typ.(Func(Code(g1, BaseInt), Code(g1, BaseStr)))
+    [%test_eq: Typ.t] sbj Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool)))
 
   let%test_unit "case 3" =
     let ty = Typ.(PolyCls(g1, g2, Code(g2, BaseInt))) in
@@ -85,8 +85,32 @@ let%test_unit "alloc generate different variables" =
   assert (Var.equal v1 v1);
   assert (not (Var.equal v1 v2))
 
+module Const = struct
+  type t =
+    (* Arithmetic operators *)
+    | Plus
+    | Minus
+    | Mult
+    | GE
+    (* Boolean operators *)
+    | Neg
+    | And
+    | Or
+  [@@deriving compare, equal, sexp]
+
+  let typeOf (x : t) : Typ.t = match x with
+    | Plus ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
+    | Minus -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
+    | Mult ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
+    | GE ->    Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
+    | Neg ->   Typ.Func(Typ.BaseBool, Typ.BaseBool)
+    | And ->   Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
+    | Or ->    Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
+end
+
 module Term = struct
   type t =
+    | Const of Const.t
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
@@ -190,7 +214,7 @@ let%test_module "context" = (module struct
   let v4 = Var.alloc ()
 
   let ctx1 = [Init g1]
-  let ctx2 = [Init g1; Var(v1, BaseInt, g2)] |> List.rev
+  let ctx2 = [Init g1; Var(v1, BaseBool, g2)] |> List.rev
   let ctx3 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1)] |> List.rev
   let ctx4 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0)] |> List.rev
   let ctx5 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0); Unlock(1)] |> List.rev
@@ -199,8 +223,8 @@ let%test_module "context" = (module struct
   let ctx8 = [Init g1; Var(v1, BaseInt, g2); Cls(g3, g2)] |> List.rev
   let ctx9 = [Init g1; Lock(g2, g1); Unlock(1); Lock(g3, g2); Unlock(1)] |> List.rev
   let ctx10 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2)] |> List.rev
-  let ctx11 = [Init g1; Var(v1, BaseInt, g2); Var(v2, BaseStr, g3); Lock(g4, g1)] |> List.rev
-  let ctx12 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseStr, g4); Unlock(1); Var(v3, BaseInt, g5); Lock(g6, g2); Var(v4, BaseInt, g7); Unlock(1)] |> List.rev
+  let ctx11 = [Init g1; Var(v1, BaseInt, g2); Var(v2, BaseBool, g3); Lock(g4, g1)] |> List.rev
+  let ctx12 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1); Var(v3, BaseInt, g5); Lock(g6, g2); Var(v4, BaseInt, g7); Unlock(1)] |> List.rev
 
   let%test_unit "get current classifier" =
     [%test_eq: Cls.t] (current ctx1) g1;
@@ -244,8 +268,8 @@ let%test_module "context" = (module struct
 
   let%test_unit "lookup a variable" =
     [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx1 v1) Option.None;
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v1) (Option.Some(BaseInt, g2));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v1) (Option.Some(BaseBool, g2));
     [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v2) Option.None;
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v2) (Option.Some(BaseStr, g4));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v2) (Option.Some(BaseBool, g4));
     [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v3) (Option.Some(BaseInt, g5));
 end)
