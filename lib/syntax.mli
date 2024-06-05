@@ -14,8 +14,10 @@ module Typ: sig
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
-  [@@deriving compare, equal, sexp]
+  [@@deriving sexp]
 
+  val equal: t -> t -> bool
+  val compare: t -> t -> int
   val subst_cls: Cls.t -> Cls.t -> t -> t
 end
 

@@ -255,11 +255,18 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
          None
      | Term.Fix (term) ->
        typeinfer ctx term >>= fun inferred ->
+       (* Since this is call-by-value language, we want to restrict term to
+          functions or classifier-functions
+       *)
        (match inferred with
-        (* Since this is call-by-value language, we want to restrict term to functions *)
-        | Func(Func(targ1, tret1), Func(targ2, tret2)) ->
+        | Typ.(Func(Func(targ1, tret1), Func(targ2, tret2))) ->
           if (Typ.equal targ1 targ2 && Typ.equal tret1 tret2) then
             return (Typ.Func(targ1, tret1))
+          else
+            Option.None
+        | Typ.(Func(PolyCls(cls1, base1, tret1), PolyCls(cls2, base2, tret2))) ->
+          if (Typ.equal (PolyCls(cls1, base1, tret1)) (PolyCls(cls2, base2, tret2))) then
+            return (Typ.PolyCls(cls1, base1, tret1))
           else
             Option.None
         | _ -> Option.None
@@ -320,7 +327,7 @@ let%test_module "typeinfer" = (module struct
                    Quo(g3, g1, Lam(v2, BaseInt, g4,
                                    Unq(1, App(AppCls(Var(v1), g4), Quo(g5, g4, Var(v2)))))))))
       (Option.Some(Typ.(Func(
-           PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))),
+           PolyCls(g6, g1, Func(Code(g6, BaseInt), Code(g6, BaseInt))),
            Code(g1, Func(BaseInt, BaseInt))))));
     [%test_eq: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
       (typeinfer
@@ -342,7 +349,20 @@ let%test_module "typeinfer" = (module struct
          (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
          Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
                        Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
-      (Option.Some(Typ.(Func(BaseInt, BaseInt))))
+      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
+                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
+      (Option.Some(Typ.(Func(BaseInt, BaseInt))));
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
+                       PolyCls(g5, g2, Var(v1))))))
+      (Option.Some(Typ.(PolyCls(g6, g2, BaseInt))))
+
 
   let%test_unit "failure" =
     [%test_eq: Typ.t option]
@@ -360,6 +380,12 @@ let%test_module "typeinfer" = (module struct
          (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
          Term.(Unq(2, Var(v1))))
       Option.None;
+    [%test_eq: Typ.t option]
+      (typeinfer
+         (Context.[Init g1] |> List.rev)
+         Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
+      Option.None;
+
 end)
 
 let typecheck (ctx: Context.t) (tm: Term.t) (ty: Typ.t): bool =

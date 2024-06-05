@@ -25,7 +25,7 @@ module Typ = struct
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, sexp]
 
   let rec subst_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
     match ty with
@@ -44,7 +44,56 @@ module Typ = struct
         PolyCls(cls, dest, ty1 |> subst_cls from dest)
       else
         PolyCls(cls, base, ty1 |> subst_cls from dest)
+
+  let rec equal (ty1: t) (ty2: t) =
+    match (ty1, ty2) with
+    | BaseInt, BaseInt -> true
+    | BaseBool, BaseBool -> true
+    | Func(targ1, tret1), Func(targ2, tret2) -> (equal targ1 targ2) && (equal tret1 tret2)
+    | Code(cls1, tbody1), Code(cls2, tbody2) -> (Cls.equal cls1 cls2) && (equal tbody1 tbody2)
+    | PolyCls(cls1, base1, tbody1), PolyCls(cls2, base2, tbody2) ->
+      (Cls.equal base1 base2) &&
+      let clsfresh = Cls.alloc () in
+      equal (tbody1 |> subst_cls cls1 clsfresh) (tbody2 |> subst_cls cls2 clsfresh)
+    | _ -> false
+
+  let compare (ty1: t) (ty2: t) =
+    if equal ty1 ty2 then 0 else 1
 end
+
+let%test_module "subst classifiers in a type" = (module struct
+  let cls1 = Cls.alloc ()
+  let cls2 = Cls.alloc ()
+  let cls3 = Cls.alloc ()
+
+  let%test_unit "equal simple types" =
+    [%test_eq: Typ.t] Typ.BaseInt Typ.BaseInt;
+    [%test_eq: Typ.t] Typ.BaseBool Typ.BaseBool;
+    [%test_eq: Typ.t] Typ.(Func(BaseInt, BaseBool)) Typ.(Func(BaseInt, BaseBool));
+    [%test_eq: Typ.t] Typ.(Code(cls1, BaseInt)) Typ.(Code(cls1, BaseInt))
+
+  let%test_unit "different simple types" =
+    assert (not (Typ.equal Typ.BaseInt Typ.BaseBool));
+    assert (not (Typ.equal Typ.(Func(BaseInt, BaseBool)) Typ.(Func(BaseInt, BaseInt))));
+    assert (not (Typ.equal Typ.(Code(cls1, BaseInt)) Typ.(Code(cls2, BaseInt))))
+
+  let%test_unit "equal polymorphic classifier types" =
+    [%test_eq: Typ.t] Typ.(PolyCls(cls1, cls2, BaseInt)) Typ.(PolyCls(cls1, cls2, BaseInt));
+    [%test_eq: Typ.t] Typ.(PolyCls(cls1, cls2, BaseInt)) Typ.(PolyCls(cls3, cls2, BaseInt));
+    [%test_eq: Typ.t]
+      Typ.(PolyCls(cls1, cls2, Code(cls1, BaseInt)))
+      Typ.(PolyCls(cls3, cls2, Code(cls3, BaseInt)))
+
+  let%test_unit "different polymorphic classifier types" =
+    assert (not (Typ.equal
+                   Typ.(PolyCls(cls1, cls2, BaseInt))
+                   Typ.(PolyCls(cls1, cls3, BaseInt))));
+    assert (not (Typ.equal
+                   Typ.(PolyCls(cls1, cls2, Code(cls1, BaseInt)))
+                   Typ.(PolyCls(cls3, cls2, Code(cls1, BaseInt)))))
+
+end)
+
 
 let%test_module "subst classifiers in a type" = (module struct
   let g1 = Cls.alloc ()
