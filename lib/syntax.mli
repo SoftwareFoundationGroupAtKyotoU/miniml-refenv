@@ -25,6 +25,7 @@ module Var: sig
   type t
   [@@deriving compare, equal, sexp]
 
+  val from_string: string -> t
   val alloc: unit -> t
 end
 

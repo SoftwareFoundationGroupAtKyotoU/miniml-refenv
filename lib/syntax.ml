@@ -117,8 +117,11 @@ let%test_module "subst classifiers in a type" = (module struct
 end)
 
 module Var = struct
-  type t = Var of int
+  type t = Var of int | Named of string
   [@@deriving compare, equal, sexp]
+
+  let from_string name =
+    Named(name)
 
   let counter = Ref.create 0
 
