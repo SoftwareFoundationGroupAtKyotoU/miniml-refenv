@@ -19,4 +19,4 @@ let%test_unit "hoge" =
     (Typechecker.typeinfer
        Context.empty
        subject)
-    (Option.Some(Typ.BaseInt));
+    (Option.Some(Typ.BaseBool));

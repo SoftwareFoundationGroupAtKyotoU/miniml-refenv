@@ -21,6 +21,8 @@
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
 
+%left OR
+%left AND
 %left LT
 %left PLUS MINUS
 %left MULT
@@ -33,12 +35,18 @@ toplevel:
   | expr EOF { $1 }
 
 expr:
-  (* Arithmetic operators *)
+(* Literals *)
+  | INTLIT { Term.Int($1) }
+  | TRUE { Bool(true) }
+  | FALSE { Bool(false) }
+(* Arithmetic operators *)
   | expr PLUS expr { makeop Const.Plus $1 $3 }
   | expr MINUS expr { makeop Const.Minus $1 $3 }
   | expr MULT expr { makeop Const.Mult $1 $3 }
-  | INTLIT { Term.Int($1) }
   | LPAREN expr RPAREN { $2 }
-  (* Comparison operator *)
+(* Comparison operator *)
   | expr LT expr { makeop Const.LT $1 $3 }
+(* Logical operator *)
+  | expr AND expr { makeop Const.And $1 $3 }
+  | expr OR expr { makeop Const.Or $1 $3 }
 
