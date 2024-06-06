@@ -1,4 +1,5 @@
 (lang dune 3.15)
+(using menhir 2.0)
 
 (name miniml_refenv)
 
