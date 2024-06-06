@@ -21,6 +21,7 @@
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
 
+%right prec_if
 %left OR
 %left AND
 %left LT
@@ -49,4 +50,7 @@ expr:
 (* Logical operator *)
   | expr AND expr { makeop Const.And $1 $3 }
   | expr OR expr { makeop Const.Or $1 $3 }
+(* primitive syntax *)
+  | IF expr THEN expr ELSE expr %prec prec_if
+    { Term.If($2, $4, $6) }
 

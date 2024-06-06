@@ -73,6 +73,10 @@ let%test_module "read term" = (module struct
       (read_term "1 < 2 && false")
       ~expect:Term.(op (op (Int 1) Const.LT (Int 2)) Const.And (Bool false))
 
+  let%test_unit "if statement" =
+    [%test_result: Term.t]
+      (read_term "if true then 1 else 2")
+      ~expect:Term.(If(Bool(true), Int(1), Int(2)))
 
 
   let%test_unit "paren" =
