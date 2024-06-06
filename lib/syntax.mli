@@ -4,6 +4,8 @@ module Cls: sig
   type t
   [@@deriving compare, equal, sexp]
 
+  val init: t
+  val from_string: string -> t
   val alloc: unit -> t
 end
 
@@ -36,7 +38,7 @@ module Const : sig
     | Plus
     | Minus
     | Mult
-    | GE
+    | LT
     (* Boolean operators *)
     | Neg
     | And
@@ -76,9 +78,11 @@ module Context: sig
   type t = elm list
   [@@deriving compare, equal, sexp]
   (* Note that elements are listed in reverse order compared to the
-     notation in the paper. If you want to align the order, use List.rev
+     notation in the paper. If you want to align the order, use from or List.rev
   *)
 
+  val empty: t
+  val from: elm list -> t
   val current: t -> Cls.t
   val depth: t -> int
   val domain_cls: t -> Cls.t list

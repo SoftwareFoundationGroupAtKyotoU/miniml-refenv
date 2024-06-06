@@ -43,6 +43,15 @@ let%test_module "read term" = (module struct
       (read_term "1 + 2 * 3")
       ~expect:Term.(op (Int 1) Const.Plus (op (Int 2) Const.Mult (Int 3)))
 
+  let%test_unit "comparizon" =
+    [%test_result: Term.t]
+      (read_term "1 < 2")
+      ~expect:Term.(op (Int 1) Const.LT (Int 2));
+    [%test_result: Term.t]
+      (read_term "1 + 2 < 3 * 4")
+      ~expect:Term.(op (op (Int 1) Const.Plus (Int 2)) Const.LT (op (Int 3) Const.Mult (Int 4)))
+
+
   let%test_unit "paren" =
     [%test_result: Term.t]
       (read_term "(1)")

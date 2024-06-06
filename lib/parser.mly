@@ -1,5 +1,7 @@
 %{
     open Syntax
+
+    let makeop opcst a b = Term.(App(App(Const(opcst), a), b))
 %}
 
 %token <int> INTLIT
@@ -19,6 +21,7 @@
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
 
+%left LT
 %left PLUS MINUS
 %left MULT
 
@@ -30,9 +33,12 @@ toplevel:
   | expr EOF { $1 }
 
 expr:
-  | expr PLUS expr { Term.(App(App(Const(Const.Plus), $1), $3)) }
-  | expr MINUS expr { Term.(App(App(Const(Const.Minus), $1), $3)) }
-  | expr MULT expr { Term.(App(App(Const(Const.Mult), $1), $3)) }
+  (* Arithmetic operators *)
+  | expr PLUS expr { makeop Const.Plus $1 $3 }
+  | expr MINUS expr { makeop Const.Minus $1 $3 }
+  | expr MULT expr { makeop Const.Mult $1 $3 }
   | INTLIT { Term.Int($1) }
   | LPAREN expr RPAREN { $2 }
+  (* Comparison operator *)
+  | expr LT expr { makeop Const.LT $1 $3 }
 

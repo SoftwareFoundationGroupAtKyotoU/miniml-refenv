@@ -1,10 +1,15 @@
 open Base
 
 module Cls = struct
-  type t = Cls of int
+  type t = Init | Cls of int | Named of string
   [@@deriving compare, equal, sexp]
 
+  let init = Init
+
   let counter = Ref.create 0
+
+  let from_string name =
+    Named name
 
   let alloc () =
     let count = !counter in
@@ -143,7 +148,7 @@ module Const = struct
     | Plus
     | Minus
     | Mult
-    | GE
+    | LT
     (* Boolean operators *)
     | Neg
     | And
@@ -154,7 +159,7 @@ module Const = struct
     | Plus ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
     | Minus -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
     | Mult ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | GE ->    Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
+    | LT ->    Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
     | Neg ->   Typ.Func(Typ.BaseBool, Typ.BaseBool)
     | And ->   Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
     | Or ->    Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
@@ -188,6 +193,9 @@ module Context = struct
 
   type t = elm list
   [@@deriving compare, equal, sexp]
+
+  let empty = [Init(Cls.Init)]
+  let from l = (Init(Cls.Init) :: l) |> List.rev
 
   let rec pop (ctx: t) (diff: int) =
     if diff < 0 then
