@@ -94,6 +94,13 @@ let%test_module "read term" = (module struct
                         Typ.BaseInt,
                         Cls.from_string "g1",
                         (op (Var(Var.from_string "x")) Const.Plus (Int 1))));
+    let xv = Var.from_string "x" in
+    let yv = Var.from_string "y" in
+    let g1 = Cls.from_string "g1" in
+    let g2 = Cls.from_string "g2" in
+    [%test_result: Term.t]
+      (read_term "fun(x:int@g1)(y:bool@g2) -> if y then x else 0")
+      ~expect:Term.(Lam(xv, Typ.BaseInt, g1, Lam(yv, Typ.BaseBool, g2, If(Var(yv),Var(xv),Int(0)))));
     let subject = (read_term "fun(x:int) -> x + 1") in
     match subject with
     | Lam(v, ty, _, tm) -> (

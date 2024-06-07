@@ -103,8 +103,14 @@ expr:
   (* If statement *)
   | IF expr THEN expr ELSE expr %prec prec_if { Term.If($2, $4, $6) }
   (* Function *)
-  | FUN LPAREN bindingvar COLON typ AT bindingcls RPAREN RARROW expr %prec prec_fun { Term.Lam($3, $5, $7, $10) }
-  | FUN LPAREN bindingvar COLON typ RPAREN RARROW expr %prec prec_fun { Term.Lam($3, $5, Cls.alloc(), $8) }
+  | FUN arglist RARROW expr %prec prec_fun
+    {
+      let rec loop arglist body =
+        match arglist with
+        | [] -> body
+        | (v, typ, cls) :: rest -> loop rest (Term.Lam(v, typ, cls, body)) in
+      loop $2 $4
+    }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
 (* Classifier abstraction *)
@@ -113,6 +119,16 @@ expr:
 (* Classifier application *)
   | expr ATAT referringcls
     { Term.(AppCls($1, $3)) }
+
+arg:
+  | LPAREN bindingvar COLON typ AT referringcls RPAREN
+    { ($2, $4, $6) }
+  | LPAREN bindingvar COLON typ RPAREN
+    { ($2, $4, Cls.alloc()) }
+
+arglist:
+  | arg { [$1] }
+  | arglist arg { $2 :: $1 }
 
 block:
   | LBRACE expr RBRACE { $2 }
