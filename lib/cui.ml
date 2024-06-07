@@ -179,6 +179,9 @@ let%test_module "read type" = (module struct
     (read_typ "int -> int")
     ~expect:Typ.(Func(BaseInt, BaseInt));
   [%test_result: Typ.t]
+    (read_typ "int -> int -> int")
+    ~expect:Typ.(Func(BaseInt, Func(BaseInt, BaseInt)));
+  [%test_result: Typ.t]
     (read_typ "<int@!>")
     ~expect:Typ.(Code(Cls.init, BaseInt))
 
