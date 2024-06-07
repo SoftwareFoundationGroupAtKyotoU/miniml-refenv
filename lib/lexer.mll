@@ -42,6 +42,7 @@ rule main = parse
 | "`" { Parser.BACKQUOTE }
 | ">" { Parser.GT }
 | ":>" { Parser.CLSBOUND }
+| "~" { Parser.TILDE }
 
 | "{" { Parser.LBRACE }
 | "}" { Parser.RBRACE }

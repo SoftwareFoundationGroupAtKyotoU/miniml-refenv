@@ -15,7 +15,7 @@
 %token FUN COLON AT RARROW
 %token BANG
 %token LET REC EQ IN UNDERSCORE
-%token BACKQUOTE
+%token BACKQUOTE TILDE
 %token FIX
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
@@ -60,8 +60,10 @@ simple_expr: (* Expressions that can be used as an argument as-is *)
   | INTLIT { Term.Int($1) }
   | TRUE { Term.Bool(true) }
   | FALSE { Term.Bool(false) }
-(* Variables *)
-  | ID { Term.Var(Var.from_string($1)) }
+  | referringvar { Term.Var($1) }
+
+referringvar:
+  | ID { Var.from_string($1) }
 
 bindingvar:
   | ID { Var.from_string($1) }
@@ -86,9 +88,18 @@ expr:
   | FUN LPAREN bindingvar COLON typ RPAREN RARROW block { Term.Lam($3, $5, Cls.alloc(), $8) }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
-(* Quotation*)
+(* Quote *)
   | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET LBRACE expr RBRACE
     { Term.Quo($3, $5, $8) }
+(* Unquote *)
+  | TILDE INTLIT LBRACE expr RBRACE
+    { Term.(Unq($2, $4)) }
+  | TILDE LBRACE expr RBRACE
+    { Term.(Unq(1, $3)) }
+  | TILDE INTLIT referringvar
+    { Term.(Unq($2, Var($3))) }
+  | TILDE referringvar
+    { Term.(Unq(1, Var($2))) }
 
 block:
   | LBRACE expr RBRACE { $2 }
@@ -97,3 +108,4 @@ typ:
   | BASEINT { Typ.BaseInt }
   | BASEBOOL { Typ.BaseBool }
   | typ RARROW typ { Typ.Func($1, $3) }
+  | LT typ AT referringcls GT { Typ.Code($4, $2) }

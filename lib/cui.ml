@@ -144,6 +144,24 @@ let%test_module "read term" = (module struct
      | Term.Quo (_, _, _) -> assert(true)
      | _ -> failwith "subject is expected to be a quotation")
 
+  let%test_unit "unquote" =
+    [%test_result: Term.t]
+      (read_term "~{ f 1 }")
+      ~expect:Term.(Unq(1, App(Var(Var.from_string "f"), Int(1))));
+    [%test_result: Term.t]
+      (read_term "~0{ f 1 }")
+      ~expect:Term.(Unq(0, App(Var(Var.from_string "f"), Int(1))));
+    [%test_result: Term.t]
+      (read_term "~10{ f 1 }")
+      ~expect:Term.(Unq(10, App(Var(Var.from_string "f"), Int(1))));
+    [%test_result: Term.t]
+      (read_term "~x")
+      ~expect:Term.(Unq(1, Var(Var.from_string "x")));
+    [%test_result: Term.t]
+      (read_term "~0x")
+      ~expect:Term.(Unq(0, Var(Var.from_string "x")))
+
+
 end)
 
 let read_typ (input: string): Typ.t =
@@ -159,6 +177,10 @@ let%test_module "read type" = (module struct
     ~expect:Typ.BaseInt;
   [%test_result: Typ.t]
     (read_typ "int -> int")
-    ~expect:Typ.(Func(BaseInt, BaseInt))
+    ~expect:Typ.(Func(BaseInt, BaseInt));
+  [%test_result: Typ.t]
+    (read_typ "<int@!>")
+    ~expect:Typ.(Code(Cls.init, BaseInt))
+
 
 end)
