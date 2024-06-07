@@ -36,6 +36,8 @@
 %nonassoc INTLIT
 %nonassoc ID
 %nonassoc LPAREN
+%nonassoc BACKQUOTE
+%nonassoc TILDE
 %nonassoc prec_polyctxtyp
 %right RARROW
 
@@ -64,6 +66,18 @@ simple_expr: (* Expressions that can be used as an argument as-is *)
   | TRUE { Term.Bool(true) }
   | FALSE { Term.Bool(false) }
   | referringvar { Term.Var($1) }
+(* Quote *)
+  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET block
+    { Term.Quo($3, $5, $7) }
+(* Unquote *)
+  | TILDE INTLIT block
+    { Term.(Unq($2, $3)) }
+  | TILDE block
+    { Term.(Unq(1, $2)) }
+  | TILDE INTLIT referringvar
+    { Term.(Unq($2, Var($3))) }
+  | TILDE referringvar
+    { Term.(Unq(1, Var($2))) }
 
 referringvar:
   | ID { Var.from_string($1) }
@@ -91,18 +105,6 @@ expr:
   | FUN LPAREN bindingvar COLON typ RPAREN RARROW expr %prec prec_fun { Term.Lam($3, $5, Cls.alloc(), $8) }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
-(* Quote *)
-  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET block
-    { Term.Quo($3, $5, $7) }
-(* Unquote *)
-  | TILDE INTLIT block
-    { Term.(Unq($2, $3)) }
-  | TILDE block
-    { Term.(Unq(1, $2)) }
-  | TILDE INTLIT referringvar
-    { Term.(Unq($2, Var($3))) }
-  | TILDE referringvar
-    { Term.(Unq(1, Var($2))) }
 (* Classifier abstraction *)
   | LBRACKET bindingcls CLSBOUND referringcls RBRACKET RARROW expr %prec prec_fun
     { Term.(PolyCls($2, $4, $7)) }
