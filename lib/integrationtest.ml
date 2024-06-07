@@ -28,15 +28,15 @@ let%test_unit "hoge" =
                       Var(Var.from_string("z"), BaseInt, Cls.alloc())])
        subject)
     (Option.Some(Typ.BaseInt));
-  let subject = Cui.read_term "fun(x:int) -> { 0 < x }" in
+  let subject = Cui.read_term "fun(x:int) -> 0 < x" in
   [%test_eq: Typ.t option]
     (Typechecker.typeinfer Context.empty subject)
     (Option.Some(Typ.(Func(BaseInt, BaseBool))));
-  let subject = Cui.read_term "fun(x:<int@!>) -> {`[_:>!]{1+~x}}" in
+  let subject = Cui.read_term "fun(x:<int@!>) -> `[_:>!]{1+~x}" in
   [%test_eq: Typ.t option]
     (Typechecker.typeinfer Context.empty subject)
     (Option.Some(Typ.(Func(Code(Cls.init, BaseInt), Code(Cls.init, BaseInt)))));
-  let subject = Cui.read_term "fun(f:[g1:>!]<int@g1>-><int@g1>) -> { `[_:>!]{ fun(x:int@g2) -> { ~{ f@@g2 (`[_:>g2]{x}) } } } }" in
+  let subject = Cui.read_term "fun(f:[g1:>!]<int@g1>-><int@g1>) -> `[_:>!]{ fun(x:int@g2) -> ~{ f@@g2 (`[_:>g2]{x}) }}" in
   [%test_eq: Typ.t option]
     (Typechecker.typeinfer Context.empty subject)
     (Option.Some(Typ.(Func(PolyCls(Cls.from_string "g1", Cls.init, Func(Code(Cls.from_string "g1", BaseInt), Code(Cls.from_string "g1", BaseInt))), Code(Cls.init, Func(BaseInt, BaseInt))))));

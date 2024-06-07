@@ -86,12 +86,12 @@ let%test_module "read term" = (module struct
 
   let%test_unit "function" =
     [%test_result: Term.t]
-      (read_term "fun(x:int@g1) -> { x + 1 }")
+      (read_term "fun(x:int@g1) -> x + 1")
       ~expect:Term.(Lam(Var.from_string "x",
                         Typ.BaseInt,
                         Cls.from_string "g1",
                         (op (Var(Var.from_string "x")) Const.Plus (Int 1))));
-    let subject = (read_term "fun(x:int) -> { x+1 }") in
+    let subject = (read_term "fun(x:int) -> x + 1") in
     match subject with
     | Lam(v, ty, _, tm) -> (
         [%test_eq: Var.t] v (Var.from_string "x");
@@ -108,13 +108,11 @@ let%test_module "read term" = (module struct
       (read_term "if true then 1 else f 1")
       ~expect:Term.(If(Bool(true), Int(1), App(Var(Var.from_string("f")), Int(1))));
     [%test_result: Term.t]
-      (read_term "fun(x:int@g1)->{ f } 2 3")
-      ~expect:Term.(App(App(Lam(Var.from_string "x",
-                                Typ.BaseInt,
-                                Cls.from_string "g1",
-                                Var(Var.from_string "f")),
-                            Int(2)),
-                        Int(3)))
+      (read_term "fun(x:int@g1)-> f 2")
+      ~expect:Term.(Lam(Var.from_string "x",
+                        Typ.BaseInt,
+                        Cls.from_string "g1",
+                        App(Var(Var.from_string "f"), Int(2))))
 
   let%test_unit "if statement" =
     [%test_result: Term.t]
@@ -163,7 +161,7 @@ let%test_module "read term" = (module struct
 
   let%test_unit "polymorphic classifier" =
     [%test_result: Term.t]
-      (read_term "[g1:>!] -> { 1 }")
+      (read_term "[g1:>!] -> 1")
       ~expect:Term.(PolyCls(Cls.from_string "g1", Cls.init, Int(1)))
 
   let%test_unit "classifier application" =

@@ -24,6 +24,7 @@
 %token BASEINT BASEBOOL
 
 %right prec_if
+%left prec_fun
 %left OR
 %left AND
 %left LT
@@ -86,25 +87,25 @@ expr:
   (* If statement *)
   | IF expr THEN expr ELSE expr %prec prec_if { Term.If($2, $4, $6) }
   (* Function *)
-  | FUN LPAREN bindingvar COLON typ AT bindingcls RPAREN RARROW block { Term.Lam($3, $5, $7, $10) }
-  | FUN LPAREN bindingvar COLON typ RPAREN RARROW block { Term.Lam($3, $5, Cls.alloc(), $8) }
+  | FUN LPAREN bindingvar COLON typ AT bindingcls RPAREN RARROW expr %prec prec_fun { Term.Lam($3, $5, $7, $10) }
+  | FUN LPAREN bindingvar COLON typ RPAREN RARROW expr %prec prec_fun { Term.Lam($3, $5, Cls.alloc(), $8) }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
 (* Quote *)
-  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET LBRACE expr RBRACE
-    { Term.Quo($3, $5, $8) }
+  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET block
+    { Term.Quo($3, $5, $7) }
 (* Unquote *)
-  | TILDE INTLIT LBRACE expr RBRACE
-    { Term.(Unq($2, $4)) }
-  | TILDE LBRACE expr RBRACE
-    { Term.(Unq(1, $3)) }
+  | TILDE INTLIT block
+    { Term.(Unq($2, $3)) }
+  | TILDE block
+    { Term.(Unq(1, $2)) }
   | TILDE INTLIT referringvar
     { Term.(Unq($2, Var($3))) }
   | TILDE referringvar
     { Term.(Unq(1, Var($2))) }
 (* Classifier abstraction *)
-  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET RARROW LBRACE expr RBRACE
-    { Term.(PolyCls($2, $4, $8)) }
+  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET RARROW expr %prec prec_fun
+    { Term.(PolyCls($2, $4, $7)) }
 (* Classifier application *)
   | expr ATAT referringcls
     { Term.(AppCls($1, $3)) }
