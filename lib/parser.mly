@@ -27,7 +27,6 @@
 %left LT
 %left PLUS MINUS
 %left MULT
-%left prec_arg
 %right RARROW
 %nonassoc TRUE
 %nonassoc FALSE
@@ -79,10 +78,7 @@ expr:
   | FUN LPAREN bindingvar COLON typ AT cls RPAREN RARROW block { Term.Lam($3, $5, $7, $10) }
   | FUN LPAREN bindingvar COLON typ RPAREN RARROW block { Term.Lam($3, $5, Cls.alloc(), $8) }
   (* Application *)
-  | expr arg { Term.App($1, $2) }
-
-arg:
-  | simple_expr { $1 }
+  | expr simple_expr { Term.App($1, $2) }
 
 block:
   | LBRACE expr RBRACE { $2 }
