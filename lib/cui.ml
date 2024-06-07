@@ -183,7 +183,15 @@ let%test_module "read type" = (module struct
     ~expect:Typ.(Func(BaseInt, Func(BaseInt, BaseInt)));
   [%test_result: Typ.t]
     (read_typ "<int@!>")
-    ~expect:Typ.(Code(Cls.init, BaseInt))
-
+    ~expect:Typ.(Code(Cls.init, BaseInt));
+  [%test_result: Typ.t]
+    (read_typ "[g1:>!]<int@g1>")
+    ~expect:Typ.(PolyCls(Cls.from_string "g1", Cls.init, Code(Cls.from_string "g1", BaseInt)));
+  [%test_result: Typ.t]
+    (read_typ "[g1:>!]int->int")
+    ~expect:Typ.(PolyCls(Cls.from_string "g1", Cls.init, Func(BaseInt, BaseInt)));
+  [%test_result: Typ.t]
+    (read_typ "([g1:>!]int)->int")
+    ~expect:Typ.(Func(PolyCls(Cls.from_string "g1", Cls.init, BaseInt), BaseInt))
 
 end)

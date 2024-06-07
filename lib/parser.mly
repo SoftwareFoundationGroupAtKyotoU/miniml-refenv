@@ -29,12 +29,13 @@
 %left LT
 %left PLUS MINUS
 %left MULT
-%right RARROW
 %nonassoc TRUE
 %nonassoc FALSE
 %nonassoc INTLIT
 %nonassoc ID
 %nonassoc LPAREN
+%nonassoc prec_polyctxtyp
+%right RARROW
 
 %start <Term.t> toplevel
 %start <Typ.t> toplevel_typ
@@ -105,7 +106,10 @@ block:
   | LBRACE expr RBRACE { $2 }
 
 typ:
+  | LPAREN typ RPAREN { $2 }
   | BASEINT { Typ.BaseInt }
   | BASEBOOL { Typ.BaseBool }
   | typ RARROW typ { Typ.Func($1, $3) }
   | LT typ AT referringcls GT { Typ.Code($4, $2) }
+  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET typ %prec prec_polyctxtyp
+    { Typ.(PolyCls($2,$4,$6)) }
