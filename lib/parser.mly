@@ -15,24 +15,31 @@
 %token FUN COLON RARROW
 %token LET REC EQ IN UNDERSCORE
 %token FIX
-%token GT CLSBOUND
-%token BASEINT BASEBOOL
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
 
+%token GT CLSBOUND
+%token BASEINT BASEBOOL
+
+%right prec_fun
 %right prec_if
 %left OR
 %left AND
 %left LT
 %left PLUS MINUS
 %left MULT
+%right RARROW
 
 %start <Term.t> toplevel
+%start <Typ.t> toplevel_typ
 
 %%
 
 toplevel:
   | expr EOF { $1 }
+
+toplevel_typ:
+  | typ EOF { $1 }
 
 expr:
 (* Literals *)
@@ -52,5 +59,11 @@ expr:
 (* primitive syntax *)
   | ID { Term.Var(Var.from_string($1)) }
   | UNDERSCORE { Term.Var(Var.alloc()) }
+  | FUN ID COLON typ RARROW expr %prec prec_fun { Term.Var(Var.alloc()) }
   | IF expr THEN expr ELSE expr %prec prec_if
     { Term.If($2, $4, $6) }
+
+typ:
+  | BASEINT { Typ.BaseInt }
+  | BASEBOOL { Typ.BaseBool }
+  | typ RARROW typ { Typ.Func($1, $3) }

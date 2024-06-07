@@ -103,3 +103,19 @@ let%test_module "read term" = (module struct
 
 end)
 
+let read_typ (input: string): Typ.t =
+  Parser.toplevel_typ Lexer.main (Lexing.from_string input)
+
+let%test_module "read type" = (module struct
+  let%test_unit "base types" =
+  [%test_result: Typ.t]
+    (read_typ "bool")
+    ~expect:Typ.BaseBool;
+  [%test_result: Typ.t]
+    (read_typ "int")
+    ~expect:Typ.BaseInt;
+  [%test_result: Typ.t]
+    (read_typ "int -> int")
+    ~expect:Typ.(Func(BaseInt, BaseInt))
+
+end)
