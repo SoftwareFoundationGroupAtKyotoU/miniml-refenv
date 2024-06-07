@@ -32,9 +32,10 @@ rule main = parse
 | "&&" { Parser.AND }
 | "||" { Parser.OR }
 
-| "\\" { Parser.FUN }
+| "fun" { Parser.FUN }
 | "->" { Parser.RARROW }
 | ":" { Parser.COLON }
+| "@" { Parser.AT }
 | "=" { Parser.EQ }
 
 | ">" { Parser.GT }

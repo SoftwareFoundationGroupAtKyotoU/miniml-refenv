@@ -28,3 +28,8 @@ let%test_unit "hoge" =
                       Var(Var.from_string("z"), BaseInt, Cls.alloc())])
        subject)
     (Option.Some(Typ.BaseInt));
+  let subject = Cui.read_term "fun(x:int) -> { 0 < x }" in
+  [%test_eq: Typ.t option]
+    (Typechecker.typeinfer Context.empty subject)
+    (Option.Some(Typ.(Func(BaseInt, BaseBool))));
+

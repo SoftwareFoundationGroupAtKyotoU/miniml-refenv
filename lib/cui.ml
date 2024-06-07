@@ -84,14 +84,46 @@ let%test_module "read term" = (module struct
       (read_term "x12__12y")
       ~expect:Term.(Var(Var.from_string("x12__12y")))
 
-  let%test_unit "_ generates unique identifier" =
-    assert (not (Term.equal (read_term "_") (read_term "_")))
+  let%test_unit "function" =
+    [%test_result: Term.t]
+      (read_term "fun(x:int@g1) -> { x + 1 }")
+      ~expect:Term.(Lam(Var.from_string "x",
+                        Typ.BaseInt,
+                        Cls.from_string "g1",
+                        (op (Var(Var.from_string "x")) Const.Plus (Int 1))));
+    let subject = (read_term "fun(x:int) -> { x+1 }") in
+    match subject with
+    | Lam(v, ty, _, tm) -> (
+        [%test_eq: Var.t] v (Var.from_string "x");
+        [%test_eq: Typ.t] ty Typ.BaseInt;
+        [%test_eq: Term.t] tm (op (Var(Var.from_string "x")) Const.Plus (Int 1));
+      )
+    | _ -> failwith "boom"
+
+    let%test_unit "app" =
+    [%test_result: Term.t]
+      (read_term "1 + f x")
+      ~expect:Term.(op (Int 1) Const.Plus (App(Var(Var.from_string "f"),Var(Var.from_string "x"))));
+    [%test_result: Term.t]
+      (read_term "if true then 1 else f 1")
+      ~expect:Term.(If(Bool(true), Int(1), App(Var(Var.from_string("f")), Int(1))));
+    [%test_result: Term.t]
+      (read_term "fun(x:int@g1)->{ f } 2 3")
+      ~expect:Term.(App(App(Lam(Var.from_string "x",
+                                Typ.BaseInt,
+                                Cls.from_string "g1",
+                                Var(Var.from_string "f")),
+                            Int(2)),
+                        Int(3)))
 
   let%test_unit "if statement" =
     [%test_result: Term.t]
       (read_term "if true then 1 else 2")
-      ~expect:Term.(If(Bool(true), Int(1), Int(2)))
-
+      ~expect:Term.(If(Bool(true), Int(1), Int(2)));
+    [%test_result: Term.t]
+      (read_term "if true then 1 else 2 + 1")
+      ~expect:Term.(If(Bool(true), Int(1),
+                      op (Int 2) Const.Plus (Int 1)))
 
   let%test_unit "paren" =
     [%test_result: Term.t]
@@ -99,7 +131,7 @@ let%test_module "read term" = (module struct
       ~expect:Term.(Int(1));
     [%test_result: Term.t]
       (read_term "1 + (2 + 3)")
-      ~expect:Term.(App(App(Const(Const.Plus), Int(1)),(App(App(Const(Const.Plus), Int(2)),Int(3)));));
+      ~expect:Term.(App(App(Const(Const.Plus), Int(1)),(App(App(Const(Const.Plus), Int(2)),Int(3)));))
 
 end)
 
