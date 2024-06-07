@@ -171,8 +171,16 @@ let%test_module "read term" = (module struct
 
   let%test_unit "polymorphic classifier" =
     [%test_result: Term.t]
-      (read_term "[g1:>!] -> 1")
-      ~expect:Term.(PolyCls(Cls.from_string "g1", Cls.init, Int(1)))
+      (read_term "fun [g1:>!] -> 1")
+      ~expect:Term.(PolyCls(Cls.from_string "g1", Cls.init, Int(1)));
+    let g1 = Cls.from_string "g1" in
+    let g2 = Cls.from_string "g2" in
+    let g3 = Cls.from_string "g3" in
+    let x = Var.from_string "x" in
+    [%test_result: Term.t]
+      (read_term "fun [g1:>!][g2:>g1](x:<int@g2>@g3) -> 1")
+      ~expect:Term.(PolyCls(g1, Cls.init, PolyCls(g2, g1, Lam(x, Typ.(Code(g2,BaseInt)), g3, Int(1)))))
+
 
   let%test_unit "classifier application" =
     [%test_result: Term.t]

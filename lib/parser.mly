@@ -2,6 +2,19 @@
     open Syntax
 
     let makeop opcst a b = Term.(App(App(Const(opcst), a), b))
+
+    let rec expand_arglist arglist body =
+      match arglist with
+      | [] -> body
+      | (v, typ, cls) :: rest ->
+         expand_arglist rest (Term.Lam(v, typ, cls, body))
+
+    let rec expand_clsarglist arglist body =
+      match arglist with
+      | [] -> body
+      | (cls, base) :: rest ->
+         expand_clsarglist rest (Term.PolyCls(cls, base, body))
+
 %}
 
 %token <int> INTLIT
@@ -102,20 +115,15 @@ expr:
   | expr OR expr { makeop Const.Or $1 $3 }
   (* If statement *)
   | IF expr THEN expr ELSE expr %prec prec_if { Term.If($2, $4, $6) }
-  (* Function *)
+  (* Function / Context abstraction *)
   | FUN arglist RARROW expr %prec prec_fun
-    {
-      let rec loop arglist body =
-        match arglist with
-        | [] -> body
-        | (v, typ, cls) :: rest -> loop rest (Term.Lam(v, typ, cls, body)) in
-      loop $2 $4
-    }
+    { expand_arglist $2 $4 }
+  | FUN clsarglist RARROW expr %prec prec_fun
+    { expand_clsarglist $2 $4 }
+  | FUN clsarglist arglist RARROW expr %prec prec_fun
+    { expand_clsarglist $2 (expand_arglist $3 $5) }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
-(* Classifier abstraction *)
-  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET RARROW expr %prec prec_fun
-    { Term.(PolyCls($2, $4, $7)) }
 (* Classifier application *)
   | expr ATAT referringcls
     { Term.(AppCls($1, $3)) }
@@ -129,6 +137,14 @@ arg:
 arglist:
   | arg { [$1] }
   | arglist arg { $2 :: $1 }
+
+clsarg:
+  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET
+    { ($2, $4) }
+
+clsarglist:
+  | clsarg { [$1] }
+  | clsarglist clsarg { $2 :: $1 }
 
 block:
   | LBRACE expr RBRACE { $2 }
