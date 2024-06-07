@@ -6,15 +6,14 @@
 
 %token <int> INTLIT
 %token TRUE FALSE
-%token <string> VARID
-%token <string> CLSID
+%token <string> ID
 
 %token LPAREN RPAREN
 %token PLUS MINUS MULT LT
 %token NOT AND OR
 %token IF THEN ELSE
 %token FUN COLON RARROW
-%token LET REC EQ IN
+%token LET REC EQ IN UNDERSCORE
 %token FIX
 %token GT CLSBOUND
 %token BASEINT BASEBOOL
@@ -38,8 +37,8 @@ toplevel:
 expr:
 (* Literals *)
   | INTLIT { Term.Int($1) }
-  | TRUE { Bool(true) }
-  | FALSE { Bool(false) }
+  | TRUE { Term.Bool(true) }
+  | FALSE { Term.Bool(false) }
 (* Arithmetic operators *)
   | expr PLUS expr { makeop Const.Plus $1 $3 }
   | expr MINUS expr { makeop Const.Minus $1 $3 }
@@ -51,6 +50,7 @@ expr:
   | expr AND expr { makeop Const.And $1 $3 }
   | expr OR expr { makeop Const.Or $1 $3 }
 (* primitive syntax *)
+  | ID { Term.Var(Var.from_string($1)) }
+  | UNDERSCORE { Term.Var(Var.alloc()) }
   | IF expr THEN expr ELSE expr %prec prec_if
     { Term.If($2, $4, $6) }
-

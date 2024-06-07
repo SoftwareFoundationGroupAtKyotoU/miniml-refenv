@@ -73,6 +73,20 @@ let%test_module "read term" = (module struct
       (read_term "1 < 2 && false")
       ~expect:Term.(op (op (Int 1) Const.LT (Int 2)) Const.And (Bool false))
 
+  let%test_unit "variable" =
+    [%test_result: Term.t]
+      (read_term "x")
+      ~expect:Term.(Var(Var.from_string("x")));
+    [%test_result: Term.t]
+      (read_term "x12")
+      ~expect:Term.(Var(Var.from_string("x12")));
+    [%test_result: Term.t]
+      (read_term "x12__12y")
+      ~expect:Term.(Var(Var.from_string("x12__12y")))
+
+  let%test_unit "_ generates unique identifier" =
+    assert (not (Term.equal (read_term "_") (read_term "_")))
+
   let%test_unit "if statement" =
     [%test_result: Term.t]
       (read_term "if true then 1 else 2")

@@ -46,16 +46,13 @@ rule main = parse
 | "]" { Parser.RBRACKET }
 | "@@" { Parser.ATAT}
 
-| ['a'-'z'] ['a'-'z' '0'-'9' '_' '\'']*
+| ['a'-'z'] ['a'-'z' '0'-'9' '_']*
     { let id = Lexing.lexeme lexbuf in
       try
         List.assoc id reservedWords
       with
-      _ -> Parser.VARID id
+      _ -> Parser.ID id
      }
-| '@' ['a'-'z' '0'-'9' '_' '\'']*
-    { let id = Lexing.lexeme lexbuf in
-      Parser.CLSID id
-    }
+| "_" { Parser.UNDERSCORE }
 | eof { EOF }
 

@@ -20,3 +20,11 @@ let%test_unit "hoge" =
        Context.empty
        subject)
     (Option.Some(Typ.BaseBool));
+  let subject = Cui.read_term "if 0 < x then y else z * 2" in
+  [%test_eq: Typ.t option]
+    (Typechecker.typeinfer
+       Context.(from [Var(Var.from_string("x"), BaseInt, Cls.alloc());
+                      Var(Var.from_string("y"), BaseInt, Cls.alloc());
+                      Var(Var.from_string("z"), BaseInt, Cls.alloc())])
+       subject)
+    (Option.Some(Typ.BaseInt));
