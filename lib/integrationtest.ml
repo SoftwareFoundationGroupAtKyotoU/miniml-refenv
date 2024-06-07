@@ -32,4 +32,8 @@ let%test_unit "hoge" =
   [%test_eq: Typ.t option]
     (Typechecker.typeinfer Context.empty subject)
     (Option.Some(Typ.(Func(BaseInt, BaseBool))));
+  let subject = Cui.read_term "`[g1:>!]{ 1 + 2 }" in
+  [%test_eq: Typ.t option]
+    (Typechecker.typeinfer Context.empty subject)
+    (Option.Some(Typ.(Code(Cls.init, BaseInt))));
 

@@ -37,7 +37,9 @@ rule main = parse
 | ":" { Parser.COLON }
 | "@" { Parser.AT }
 | "=" { Parser.EQ }
+| "!" { Parser.BANG }
 
+| "`" { Parser.BACKQUOTE }
 | ">" { Parser.GT }
 | ":>" { Parser.CLSBOUND }
 

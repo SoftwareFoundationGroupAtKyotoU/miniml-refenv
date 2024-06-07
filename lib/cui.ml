@@ -133,6 +133,17 @@ let%test_module "read term" = (module struct
       (read_term "1 + (2 + 3)")
       ~expect:Term.(App(App(Const(Const.Plus), Int(1)),(App(App(Const(Const.Plus), Int(2)),Int(3)));))
 
+  let%test_unit "quote" =
+    [%test_result: Term.t]
+      (read_term "`[g1:>!]{ f 1 }")
+      ~expect:Term.(Quo(Cls.from_string "g1",
+                        Cls.init,
+                        App(Var(Var.from_string("f")), Int(1))));
+    let subject = read_term "`[_:>g2]{ f 1 }" in
+    (match subject with
+     | Term.Quo (_, _, _) -> assert(true)
+     | _ -> failwith "subject is expected to be a quotation")
+
 end)
 
 let read_typ (input: string): Typ.t =

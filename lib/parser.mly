@@ -13,7 +13,9 @@
 %token NOT AND OR
 %token IF THEN ELSE
 %token FUN COLON AT RARROW
+%token BANG
 %token LET REC EQ IN UNDERSCORE
+%token BACKQUOTE
 %token FIX
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token EOF
@@ -45,8 +47,13 @@ toplevel:
 toplevel_typ:
   | typ EOF { $1 }
 
-cls:
+bindingcls:
   | ID { Cls.from_string $1 }
+  | UNDERSCORE { Cls.alloc () }
+
+referringcls:
+  | ID { Cls.from_string $1 }
+  | BANG { Cls.init }
 
 simple_expr: (* Expressions that can be used as an argument as-is *)
   | LPAREN expr RPAREN { $2 }
@@ -75,10 +82,13 @@ expr:
   (* If statement *)
   | IF expr THEN expr ELSE expr %prec prec_if { Term.If($2, $4, $6) }
   (* Function *)
-  | FUN LPAREN bindingvar COLON typ AT cls RPAREN RARROW block { Term.Lam($3, $5, $7, $10) }
+  | FUN LPAREN bindingvar COLON typ AT bindingcls RPAREN RARROW block { Term.Lam($3, $5, $7, $10) }
   | FUN LPAREN bindingvar COLON typ RPAREN RARROW block { Term.Lam($3, $5, Cls.alloc(), $8) }
   (* Application *)
   | expr simple_expr { Term.App($1, $2) }
+(* Quotation*)
+  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET LBRACE expr RBRACE
+    { Term.Quo($3, $5, $8) }
 
 block:
   | LBRACE expr RBRACE { $2 }
