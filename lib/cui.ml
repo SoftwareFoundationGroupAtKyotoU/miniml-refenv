@@ -61,6 +61,9 @@ let%test_module "read term" = (module struct
 
   let%test_unit "logical operators" =
     [%test_result: Term.t]
+      (read_term "not false")
+      ~expect:Term.(App(Const(Const.Not), Bool(false)));
+    [%test_result: Term.t]
       (read_term "true && false")
       ~expect:Term.(op (Bool true) Const.And (Bool false));
     [%test_result: Term.t]

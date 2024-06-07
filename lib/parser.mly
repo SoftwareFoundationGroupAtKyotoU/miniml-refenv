@@ -30,6 +30,7 @@
 %left LT
 %left PLUS MINUS
 %left MULT
+%right NOT
 %nonassoc ATAT
 %nonassoc TRUE
 %nonassoc FALSE
@@ -95,7 +96,8 @@ expr:
   | expr MULT expr { makeop Const.Mult $1 $3 }
   (* Comparison operator *)
   | expr LT expr { makeop Const.LT $1 $3 }
-  (* Logical operator *)
+(* Logical operator *)
+  | NOT expr { Term.(App(Const(Const.Not), $2))}
   | expr AND expr { makeop Const.And $1 $3 }
   | expr OR expr { makeop Const.Or $1 $3 }
   (* If statement *)

@@ -40,7 +40,7 @@ module Const : sig
     | Mult
     | LT
     (* Boolean operators *)
-    | Neg
+    | Not
     | And
     | Or
   [@@deriving compare, equal, sexp]
