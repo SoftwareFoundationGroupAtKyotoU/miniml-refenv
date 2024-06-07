@@ -29,6 +29,7 @@
 %left LT
 %left PLUS MINUS
 %left MULT
+%nonassoc ATAT
 %nonassoc TRUE
 %nonassoc FALSE
 %nonassoc INTLIT
@@ -101,6 +102,12 @@ expr:
     { Term.(Unq($2, Var($3))) }
   | TILDE referringvar
     { Term.(Unq(1, Var($2))) }
+(* Classifier abstraction *)
+  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET RARROW LBRACE expr RBRACE
+    { Term.(PolyCls($2, $4, $8)) }
+(* Classifier application *)
+  | expr ATAT referringcls
+    { Term.(AppCls($1, $3)) }
 
 block:
   | LBRACE expr RBRACE { $2 }

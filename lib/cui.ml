@@ -161,6 +161,15 @@ let%test_module "read term" = (module struct
       (read_term "~0x")
       ~expect:Term.(Unq(0, Var(Var.from_string "x")))
 
+  let%test_unit "polymorphic classifier" =
+    [%test_result: Term.t]
+      (read_term "[g1:>!] -> { 1 }")
+      ~expect:Term.(PolyCls(Cls.from_string "g1", Cls.init, Int(1)))
+
+  let%test_unit "classifier application" =
+    [%test_result: Term.t]
+      (read_term "x @@ g1")
+      ~expect:Term.(AppCls(Var(Var.from_string "x"), Cls.from_string("g1")))
 
 end)
 
