@@ -42,7 +42,7 @@ and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
 let%test_module "well_formed_context" = (module struct
   open Context
 
-  let g1 = Cls.alloc ()
+  let g1 = Cls.init
   let g2 = Cls.alloc ()
   let g3 = Cls.alloc ()
 
@@ -51,13 +51,13 @@ let%test_module "well_formed_context" = (module struct
 
   let%test_unit "well-formed contexts" =
     assert (well_formed_context [Init g1]);
-    assert (well_formed_context ([Init g1; Var(v1, BaseInt, g2)] |> List.rev));
-    assert (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v2, BaseInt, g3)] |> List.rev));
-    assert (well_formed_context ([Init g1; Lock(g2, g1); Var(v1, BaseInt, g3)] |> List.rev));
-    assert (well_formed_context ([Init g1; Lock(g2, g1); Lock(g3, g1)] |> List.rev));
-    assert (well_formed_context ([Init g1; Lock(g2, g1); Unlock(1)] |> List.rev));
-    assert (well_formed_context ([Init g1; Lock(g2, g1); Unlock(0)] |> List.rev));
-    assert (well_formed_context ([Init g1; Cls(g2, g1)] |> List.rev))
+    assert (well_formed_context (from [Var(v1, BaseInt, g2)]));
+    assert (well_formed_context (from [Var(v1, BaseInt, g2); Var(v2, BaseInt, g3)]));
+    assert (well_formed_context (from [Lock(g2, g1); Var(v1, BaseInt, g3)]));
+    assert (well_formed_context (from [Lock(g2, g1); Lock(g3, g1)]));
+    assert (well_formed_context (from [Lock(g2, g1); Unlock(1)]));
+    assert (well_formed_context (from [Lock(g2, g1); Unlock(0)]));
+    assert (well_formed_context (from [Cls(g2, g1)]))
 
   let%test_unit "empty context is ill-formed" =
     assert (not (well_formed_context []))
@@ -66,30 +66,30 @@ let%test_module "well_formed_context" = (module struct
     assert (not (well_formed_context [Init g1; Init g2]))
 
   let%test_unit "ill-formed contexts : case Var" =
-    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g1)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Var(v1, Code(g2, BaseInt), g2)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v1, BaseInt, g3)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g2); Var(v2, BaseInt, g2)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Var(v1, BaseInt, g1); Var(v2, BaseInt, g2)] |> List.rev)))
+    assert (not (well_formed_context (from [Var(v1, BaseInt, g1)])));
+    assert (not (well_formed_context (from [Var(v1, Code(g2, BaseInt), g2)])));
+    assert (not (well_formed_context (from [Var(v1, BaseInt, g2); Var(v1, BaseInt, g3)])));
+    assert (not (well_formed_context (from [Var(v1, BaseInt, g2); Var(v2, BaseInt, g2)])));
+    assert (not (well_formed_context (from [Var(v1, BaseInt, g1); Var(v2, BaseInt, g2)])))
 
   let%test_unit "ill-formed contexts : case Lock" =
-    assert (not (well_formed_context ([Init g1; Lock(g2, g3)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Lock(g1, g1)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Lock(g3, g3)] |> List.rev)))
+    assert (not (well_formed_context (from [Lock(g2, g3)])));
+    assert (not (well_formed_context (from [Lock(g1, g1)])));
+    assert (not (well_formed_context (from [Lock(g2, g1); Lock(g3, g3)])))
 
   let%test_unit "ill-formed contexts : case Unlock" =
-    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(2)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(44)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Lock(g2, g1); Unlock(-1)] |> List.rev)))
+    assert (not (well_formed_context (from [Lock(g2, g1); Unlock(2)])));
+    assert (not (well_formed_context (from [Lock(g2, g1); Unlock(44)])));
+    assert (not (well_formed_context (from [Lock(g2, g1); Unlock(-1)])))
 
   let%test_unit "ill-formed contexts : case Cls" =
-    assert (not (well_formed_context ([Init g1; Cls(g2, g2)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Cls(g1, g1)] |> List.rev)));
-    assert (not (well_formed_context ([Init g1; Cls(g2, g1); Cls(g1, g2)] |> List.rev)));
+    assert (not (well_formed_context (from [Cls(g2, g2)])));
+    assert (not (well_formed_context (from [Cls(g1, g1)])));
+    assert (not (well_formed_context (from [Cls(g2, g1); Cls(g1, g2)])));
 end)
 
 let%test_module "well_formed_type" = (module struct
-  let g1 = Cls.alloc ()
+  let g1 = Cls.init
   let g2 = Cls.alloc ()
   let g3 = Cls.alloc ()
   let g4 = Cls.alloc ()
@@ -99,7 +99,12 @@ let%test_module "well_formed_type" = (module struct
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()
 
-  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1)] |> List.rev
+  let ctx = Context.(from [
+      Var(v1, BaseInt, g2);
+      Lock(g3, g1);
+      Var(v2, BaseBool, g4);
+      Unlock(1)
+    ])
 
   let%test_unit "confirm that ctx is well-formed" =
     assert (well_formed_context ctx)
@@ -160,7 +165,7 @@ let rec reachable_intuitionistic (ctx: Context.t) (cls1: Cls.t) (cls2: Cls.t): b
     ) |> Option.value ~default:false
 
 let%test_module "reachable_intuitionistic" = (module struct
-  let g1 = Cls.alloc ()
+  let g1 = Cls.init
   let g2 = Cls.alloc ()
   let g3 = Cls.alloc ()
   let g4 = Cls.alloc ()
@@ -171,7 +176,13 @@ let%test_module "reachable_intuitionistic" = (module struct
   let v2 = Var.alloc ()
   let v3 = Var.alloc ()
 
-  let ctx = Context.[Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1); Var(v3, BaseInt, g5)] |> List.rev
+  let ctx = Context.(from [
+      Var(v1, BaseInt, g2);
+      Lock(g3, g1);
+      Var(v2, BaseBool, g4);
+      Unlock(1);
+      Var(v3, BaseInt, g5)
+    ])
 
   let%test_unit "confirm that ctx is well-formed" =
     assert (well_formed_context ctx)
@@ -283,7 +294,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
          Option.None)
 
 let%test_module "typeinfer" = (module struct
-  let g1 = Cls.alloc ()
+  let g1 = Cls.init
   let g2 = Cls.alloc ()
   let g3 = Cls.alloc ()
   let g4 = Cls.alloc ()
@@ -319,31 +330,31 @@ let%test_module "typeinfer" = (module struct
       ~expect:(Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Context.(from [Var(v1, BaseInt, g2)])
          Term.(App(App(Const(Const.Plus), Var(v1)), Var(v1))))
       ~expect:(Option.Some(Typ.BaseInt))
 
   let%test_unit "variables" =
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Var(v2)))
       ~expect:Option.None;
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Unq(2, Var(v1))))
       ~expect:Option.None
 
   let%test_unit "lambda" =
     [%test_result: Typ.t option]
       (typeinfer
-         Context.[Init g1]
+         Context.empty
          Term.(Lam(v1, BaseInt, g2, Var(v1))))
       ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         Context.[Init g1]
+         Context.empty
          Term.(Lam(v1, Code(g3, BaseInt) (* This type is ill-formed *), g2,
                    Var(v1))))
       ~expect:(Option.None)
@@ -351,100 +362,100 @@ let%test_module "typeinfer" = (module struct
   let%test_unit "quo and unq" =
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Context.(from [Var(v1, BaseInt, g2)])
          Term.(Quo(g3, g2, Var(v1))))
       ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g3, g1, Unq(1, Var(v1)))))
       ~expect:(Option.Some(Typ.(Code(g1, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g3, g2, Unq(0, Var(v1)))))
       ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, Code(g1, BaseInt), g2)] |> List.rev)
+         Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g3, g1, Unq(0, Var(v1)))))
       ~expect:Option.None
 
   let%test_unit "polymorphic contexts" =
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(PolyCls(g2, g1, Quo(g3, g2, Int(1)))))
       ~expect:(Option.Some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(PolyCls(g1, g1, Quo(g3, g1, Int(1)))))
       ~expect:(Option.None);
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(PolyCls(g2, g3, Quo(g4, g1, Int(1)))))
       ~expect:(Option.None)
 
     let%test_unit "context applications" =
       [%test_result: Typ.t option]
         (typeinfer
-           (Context.[Init g1; Var(v1, PolyCls(g2, g1, Code(g2, BaseInt)), g3); Cls(g4, g3)] |> List.rev)
+           Context.(from [Var(v1, PolyCls(g2, g1, Code(g2, BaseInt)), g3); Cls(g4, g3)])
            Term.(AppCls(Var(v1), g4)))
         ~expect:(Option.Some(Typ.(Code(g4, BaseInt))));
       [%test_result: Typ.t option]
         (typeinfer
-           (Context.[Init g1; Var(v1, BaseInt, g2); Var(v2, PolyCls(g3, g2, Code(g3, BaseInt)), g4)] |> List.rev)
+           Context.(from [Var(v1, BaseInt, g2); Var(v2, PolyCls(g3, g2, Code(g3, BaseInt)), g4)])
            Term.(AppCls(Var(v2), g1)))
         ~expect:(Option.None)
 
   let%test_unit "fix" =
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
                        Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
       ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
                        Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
       ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1; Var(v1, BaseInt, g2)] |> List.rev)
+         Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
                        PolyCls(g5, g2, Var(v1))))))
       ~expect:(Option.Some(Typ.(PolyCls(g6, g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
       ~expect:Option.None
 
     let%test_unit "if-statement" =
       [%test_result: Typ.t option]
         (typeinfer
-           (Context.[Init g1] |> List.rev)
+           Context.empty
            Term.(If(Bool(true), Int(1), Int(2))))
         ~expect:(Option.Some(Typ.(BaseInt)));
       [%test_result: Typ.t option]
         (typeinfer
-           (Context.[Init g1] |> List.rev)
+           Context.empty
            Term.(If(Bool(true), Int(1), Bool(false))))
         ~expect:(Option.None);
       [%test_result: Typ.t option]
         (typeinfer
-           (Context.[Init g1] |> List.rev)
+           Context.empty
            Term.(If(Int(1), Int(1), Int(2))))
         ~expect:(Option.None)
 
     let%test_unit "complex cases: axioms" =
     [%test_result: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(Lam(v1, PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))), g2,
                    Quo(g3, g1, Lam(v2, BaseInt, g4,
                                    Unq(1, App(AppCls(Var(v1), g4), Quo(g5, g4, Var(v2)))))))))
@@ -453,14 +464,14 @@ let%test_module "typeinfer" = (module struct
           Code(g1, Func(BaseInt, BaseInt))))));
     [%test_result: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(PolyCls(g2, g1, Lam(v1, Code(g2, Code(g1, BaseInt)), g3,
                                   Quo(g4, g2, Unq(0, Unq(1, Var(v1))))))))
       ~expect:(Option.Some(Typ.(
           PolyCls(g2, g1, Func(Code(g2, Code(g1, BaseInt)), Code(g2, BaseInt))))));
     [%test_result: Typ.t option] (* K4-like axiom \g2:>g1.\g6:>g1.<int@g2>-><<int@g2>@g6> *)
       (typeinfer
-         (Context.[Init g1] |> List.rev)
+         Context.empty
          Term.(PolyCls(g2, g1, PolyCls(g6, g1,
                                        Lam(v1, Code(g2, BaseInt), g3,
                                            Quo(g4, g6, Quo(g5, g2, Unq(2, Var(v1)))))))))

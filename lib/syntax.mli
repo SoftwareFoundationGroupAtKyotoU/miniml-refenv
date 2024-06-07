@@ -77,9 +77,6 @@ module Context: sig
 
   type t = elm list
   [@@deriving compare, equal, sexp]
-  (* Note that elements are listed in reverse order compared to the
-     notation in the paper. If you want to align the order, use from or List.rev
-  *)
 
   val empty: t
   val from: elm list -> t
