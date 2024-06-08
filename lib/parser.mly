@@ -15,8 +15,8 @@
       | (_, typ, _) :: rest ->
          expand_functype rest (Typ.Func(typ, result_typ))
 
-    let rec expand_clsarglist arglist body =
-      match arglist with
+    let rec expand_clsarglist clsarglist body =
+      match clsarglist with
       | [] -> body
       | (cls, base) :: rest ->
          expand_clsarglist rest (Term.PolyCls(cls, base, body))
