@@ -149,6 +149,9 @@ module Const = struct
     | Minus
     | Mult
     | LT
+    | Equal
+    | Div
+    | Mod
     (* Boolean operators *)
     | Not
     | And
@@ -159,7 +162,10 @@ module Const = struct
     | Plus ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
     | Minus -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
     | Mult ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
+    | Div ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
+    | Mod ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
     | LT ->    Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
+    | Equal -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
     | Not ->   Typ.Func(Typ.BaseBool, Typ.BaseBool)
     | And ->   Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
     | Or ->    Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))

@@ -30,7 +30,7 @@
 %token <string> ID
 
 %token LPAREN RPAREN
-%token PLUS MINUS MULT LT
+%token PLUS MINUS MULT LT EQUAL DIV MOD
 %token NOT AND OR
 %token IF THEN ELSE
 %token FUN COLON AT RARROW
@@ -49,9 +49,10 @@
 %left prec_fun
 %left OR
 %left AND
+%left EQUAL
 %left LT
 %left PLUS MINUS
-%left MULT
+%left MULT DIV MOD
 %right NOT
 %nonassoc ATAT
 %nonassoc TRUE
@@ -116,7 +117,10 @@ expr:
   | expr PLUS expr { makeop Const.Plus $1 $3 }
   | expr MINUS expr { makeop Const.Minus $1 $3 }
   | expr MULT expr { makeop Const.Mult $1 $3 }
-  (* Comparison operator *)
+  | expr DIV expr { makeop Const.Div $1 $3 }
+  | expr MOD expr { makeop Const.Mod $1 $3 }
+(* Comparison operator *)
+  | expr EQUAL expr { makeop Const.Equal $1 $3 }
   | expr LT expr { makeop Const.LT $1 $3 }
 (* Logical operator *)
   | NOT expr { Term.(App(Const(Const.Not), $2))}

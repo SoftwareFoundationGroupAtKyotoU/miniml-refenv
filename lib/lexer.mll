@@ -13,6 +13,7 @@ let reservedWords = [
   ("not", Parser.NOT);
   ("int", Parser.BASEINT);
   ("bool", Parser.BASEBOOL);
+  ("mod", Parser.MOD);
 ]
 }
 
@@ -29,6 +30,7 @@ rule main = parse
 | "-" { Parser.MINUS }
 | "*" { Parser.MULT }
 | "<" { Parser.LT }
+| "==" { Parser.EQUAL }
 | "&&" { Parser.AND }
 | "||" { Parser.OR }
 

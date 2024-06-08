@@ -39,6 +39,9 @@ module Const : sig
     | Minus
     | Mult
     | LT
+    | Equal
+    | Div
+    | Mod
     (* Boolean operators *)
     | Not
     | And
