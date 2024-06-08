@@ -223,9 +223,18 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
        Context.lookup_var ctx v >>= fun (ty, cls) ->
        ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
      | Term.Lam (v, ty, cls, body) ->
-       let ctx2 = Context.Var(v, ty, cls) :: ctx in
-       typeinfer ctx2 body >>= fun ineferred ->
-       return (Typ.Func(ty, ineferred))
+       (* rename v and cls to fresh identifiers to avoid shadowing *)
+       let v' = Var.alloc () in
+       let cls' = Cls.alloc () in
+       let body' = body
+                   |> Term.rename_var v v'
+                   |> Term.rename_cls cls cls' in
+       let ctx2 = Context.Var(v', ty, cls') :: ctx in
+       typeinfer ctx2 body' >>= fun inferred ->
+       if cls' |> Set.mem (Typ.free_cls inferred) then
+         Option.None
+       else
+         return (Typ.Func(ty, inferred))
      | Term.App (func, arg) ->
        typeinfer ctx func >>= fun tyfunc ->
        typeinfer ctx arg >>= fun tyarg ->
@@ -237,8 +246,12 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
             None
         | _ -> None)
      | Term.Quo (cls, base, body) ->
-       let ctx2 = Context.Lock(cls, base) :: ctx in
-       typeinfer ctx2 body >>= fun inferred ->
+       (* rename cls to avoid shadowing *)
+       let cls' = Cls.alloc () in
+       let body' = body
+                   |> Term.rename_cls cls cls' in
+       let ctx2 = Context.Lock(cls', base) :: ctx in
+       typeinfer ctx2 body' >>= fun inferred ->
        return (Typ.Code(base, inferred))
      | Term.Unq (diff, body) ->
        let ctx2 = Context.Unlock(diff) :: ctx in
@@ -251,16 +264,19 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
             None
         | _ -> None)
      | Term.PolyCls (cls, base, body) ->
-       let ctx2 = Context.Cls(cls, base) :: ctx in
-       typeinfer ctx2 body >>= fun inferred ->
-       return (Typ.PolyCls(cls, base, inferred))
+       (* rename cls to avoid shadowing *)
+       let cls' = Cls.alloc () in
+       let body' = body |> Term.rename_cls cls cls' in
+       let ctx2 = Context.Cls(cls', base) :: ctx in
+       typeinfer ctx2 body' >>= fun inferred ->
+       return (Typ.PolyCls(cls', base, inferred))
      | Term.AppCls (tm, cls) ->
        if cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal then
          typeinfer ctx tm >>= fun inferred ->
          (match inferred with
           | PolyCls(cls1, base, ty1) ->
             if reachable_intuitionistic ctx base cls then
-              return (ty1 |> Typ.subst_cls cls1 cls)
+              return (ty1 |> Typ.rename_cls cls1 cls)
             else
               None
           | _ -> None)
@@ -353,6 +369,13 @@ let%test_module "typeinfer" = (module struct
          Term.(Lam(v1, BaseInt, g2, Var(v1))))
       ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
+      ~message:"classifier of lambda cannot appear freely in the resulting type"
+      (typeinfer
+         Context.empty
+         Term.(Lam(v1, BaseInt, g2, Quo(g3, g2, Var(v1)))))
+      ~expect:(Option.None);
+    [%test_result: Typ.t option]
+      ~message:"lambda cannot carry an ill-formed type"
       (typeinfer
          Context.empty
          Term.(Lam(v1, Code(g3, BaseInt) (* This type is ill-formed *), g2,
@@ -391,7 +414,7 @@ let%test_module "typeinfer" = (module struct
       (typeinfer
          Context.empty
          Term.(PolyCls(g1, g1, Quo(g3, g1, Int(1)))))
-      ~expect:(Option.None);
+      ~expect:(Option.Some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
@@ -451,6 +474,23 @@ let%test_module "typeinfer" = (module struct
            Context.empty
            Term.(If(Int(1), Int(1), Int(2))))
         ~expect:(Option.None)
+
+    let%test_unit "shadowing" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Lam(v1, BaseInt, g2, Lam(v1, BaseInt, g2, Var(v1)))))
+        ~expect:(Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Lam(v1, BaseInt, g2, Quo(g2, Cls.init, Int(1)))))
+        ~expect:(Option.Some(Typ.(Func(BaseInt, Code(Cls.init, BaseInt)))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Lam(v1, BaseInt, g2, PolyCls(g2, Cls.init, Int(1)))))
+        ~expect:(Option.Some(Typ.(Func(BaseInt, PolyCls(g3, Cls.init, BaseInt)))))
 
     let%test_unit "complex cases: axioms" =
     [%test_result: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)

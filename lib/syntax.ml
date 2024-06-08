@@ -1,8 +1,15 @@
 open Base
 
 module Cls = struct
-  type t = Init | Cls of int | Named of string
-  [@@deriving compare, equal, sexp]
+  module T = struct
+    type t = Init | Cls of int | Named of string
+    [@@deriving compare, equal, sexp]
+  end
+
+  include T
+  include Base.Comparator.Make(T)
+
+  type set = (t, comparator_witness) Set.t
 
   let init = Init
 
@@ -15,6 +22,10 @@ module Cls = struct
     let count = !counter in
     counter := count + 1;
     Cls(count)
+
+  let rename_cls(from:t)(dest:t)(cls:t):t =
+    if equal from cls then dest else cls
+
 end
 
 let%test_unit "alloc generate different classifiers" =
@@ -32,23 +43,32 @@ module Typ = struct
     | PolyCls of Cls.t * Cls.t * t
   [@@deriving compare, sexp]
 
-  let rec subst_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
+  let rec rename_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
     match ty with
     | BaseInt -> BaseInt
     | BaseBool -> BaseBool
-    | Func (ty1, ty2) -> Func(ty1 |> subst_cls from dest, ty2 |> subst_cls from dest)
+    | Func (ty1, ty2) -> Func(ty1 |> rename_cls from dest, ty2 |> rename_cls from dest)
     | Code (base, ty1) ->
       if Cls.equal from base then
-        Code(dest, ty1 |> subst_cls from dest)
+        Code(dest, ty1 |> rename_cls from dest)
       else
-        Code (base, ty1 |> subst_cls from dest)
+        Code (base, ty1 |> rename_cls from dest)
     | PolyCls (cls, base, ty1) ->
       if Cls.equal cls from || Cls.equal cls dest then
         failwith "unreachable: cls should be fresh"
       else if Cls.equal from base then
-        PolyCls(cls, dest, ty1 |> subst_cls from dest)
+        PolyCls(cls, dest, ty1 |> rename_cls from dest)
       else
-        PolyCls(cls, base, ty1 |> subst_cls from dest)
+        PolyCls(cls, base, ty1 |> rename_cls from dest)
+
+  let rec free_cls (typ: t): Cls.set =
+    (match typ with
+     | BaseInt -> Set.empty (module Cls)
+     | BaseBool -> Set.empty (module Cls)
+     | Func (ty1, ty2) -> Set.union (free_cls ty1) (free_cls ty2)
+     | Code (cls, ty) -> Set.add (free_cls ty) cls
+     | PolyCls (cls, base, ty) ->
+       (Set.remove (Set.add (free_cls ty) base) cls))
 
   let rec equal (ty1: t) (ty2: t) =
     match (ty1, ty2) with
@@ -59,7 +79,7 @@ module Typ = struct
     | PolyCls(cls1, base1, tbody1), PolyCls(cls2, base2, tbody2) ->
       (Cls.equal base1 base2) &&
       let clsfresh = Cls.alloc () in
-      equal (tbody1 |> subst_cls cls1 clsfresh) (tbody2 |> subst_cls cls2 clsfresh)
+      equal (tbody1 |> rename_cls cls1 clsfresh) (tbody2 |> rename_cls cls2 clsfresh)
     | _ -> false
 
   let compare (ty1: t) (ty2: t) =
@@ -107,17 +127,17 @@ let%test_module "subst classifiers in a type" = (module struct
 
   let%test_unit "case 1" =
     let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool))) in
-    let sbj = ty |> Typ.subst_cls g1 g2 in
+    let sbj = ty |> Typ.rename_cls g1 g2 in
     [%test_eq: Typ.t] sbj Typ.(Func(Code(g2, BaseInt), Code(g2, BaseBool)))
 
   let%test_unit "case 2" =
     let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool))) in
-    let sbj = ty |> Typ.subst_cls g2 g3 in
+    let sbj = ty |> Typ.rename_cls g2 g3 in
     [%test_eq: Typ.t] sbj Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool)))
 
   let%test_unit "case 3" =
     let ty = Typ.(PolyCls(g1, g2, Code(g2, BaseInt))) in
-    let sbj = ty |> Typ.subst_cls g2 g3 in
+    let sbj = ty |> Typ.rename_cls g2 g3 in
     [%test_eq: Typ.t] sbj Typ.(PolyCls(g1, g3, Code(g3, BaseInt)))
 end)
 
@@ -186,6 +206,69 @@ module Term = struct
     | Fix of t
     | If of t * t * t
   [@@deriving compare, equal, sexp]
+
+  let rec rename_var(from:Var.t)(dest:Var.t)(tm:t): t =
+    match (tm : t) with
+    | Int _ -> tm
+    | Bool _ -> tm
+    | Const _ -> tm
+    | Var v -> if Var.equal from v then Var(dest) else tm
+    | Lam (v, typ, cls, body) ->
+      if Var.equal from v
+      then tm
+      else Lam(v, typ, cls, body |> rename_var from dest)
+    | App (func, arg) ->
+      App (func |> rename_var from dest,
+           arg |> rename_var from dest)
+    | Quo (cls, base, body) ->
+      Quo (cls, base, body |> rename_var from dest)
+    | Unq (diff, body) ->
+      Unq (diff, body |> rename_var from dest)
+    | PolyCls (cls, base, body) ->
+      PolyCls (cls, base, body |> rename_var from dest)
+    | AppCls (tm, cls) ->
+      AppCls (tm |> rename_var from dest, cls)
+    | Fix f -> Fix (f |> rename_var from dest)
+    | If (cond, thenn, elsee) ->
+      If (cond |> rename_var from dest,
+          thenn |> rename_var from dest,
+          elsee |> rename_var from dest)
+
+  let rec rename_cls(from:Cls.t)(dest:Cls.t)(tm:t): t =
+    let apply = Cls.rename_cls from dest in
+    match (tm : t) with
+    | Int _ -> tm
+    | Bool _ -> tm
+    | Const _ -> tm
+    | Var _ -> tm
+    | Lam (v, typ, cls, body) ->
+      if Cls.equal from cls
+      then tm
+      else Lam(v,
+               typ |> Typ.rename_cls from dest,
+               cls,
+               body |> rename_cls from dest)
+    | App (func, arg) ->
+      App (func |> rename_cls from dest,
+           arg |> rename_cls from dest)
+    | Quo (cls, base, body) ->
+      if Cls.equal from cls
+      then Quo (cls, apply base, body)
+      else Quo (cls, apply base, body |> rename_cls from dest)
+    | Unq (diff, body) ->
+      Unq (diff, body |> rename_cls from dest)
+    | PolyCls (cls, base, body) ->
+      if Cls.equal from cls
+      then PolyCls (cls, apply base, body)
+      else PolyCls (cls, apply base, body |> rename_cls from dest)
+    | AppCls (tm, cls) ->
+      AppCls (tm |> rename_cls from dest, apply cls)
+    | Fix f -> Fix (f |> rename_cls from dest)
+    | If (cond, thenn, elsee) ->
+      If (cond |> rename_cls from dest,
+          thenn |> rename_cls from dest,
+          elsee |> rename_cls from dest)
+
 end
 
 module Context = struct

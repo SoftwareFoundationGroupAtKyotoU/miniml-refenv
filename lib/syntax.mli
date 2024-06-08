@@ -7,6 +7,11 @@ module Cls: sig
   val init: t
   val from_string: string -> t
   val alloc: unit -> t
+  val rename_cls: t -> t -> t -> t
+
+  include Comparator.S with type t := t
+  type set = (t, comparator_witness) Set.t
+
 end
 
 module Typ: sig
@@ -20,7 +25,8 @@ module Typ: sig
 
   val equal: t -> t -> bool
   val compare: t -> t -> int
-  val subst_cls: Cls.t -> Cls.t -> t -> t
+  val rename_cls: Cls.t -> Cls.t -> t -> t
+  val free_cls: t -> Cls.set
 end
 
 module Var: sig
@@ -67,6 +73,9 @@ module Term: sig
     | Fix of t
     | If of t * t * t
   [@@deriving compare, equal, sexp]
+
+  val rename_var: Var.t -> Var.t -> t -> t
+  val rename_cls: Cls.t -> Cls.t -> t -> t
 end
 
 module Context: sig
