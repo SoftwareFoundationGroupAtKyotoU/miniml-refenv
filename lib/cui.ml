@@ -204,6 +204,17 @@ let%test_module "read term" = (module struct
       (read_term "let f[g1:>!](x:<int@g1>@g3):<int@g1>@g2 = x in f")
       ~expect:Term.(App(Lam(f, Typ.(PolyCls(g1, Cls.init, Func(Code(g1, BaseInt), Code(g1, BaseInt)))), g2, Var(f)), PolyCls(g1, Cls.init, Lam(x, Code(g1, BaseInt), g3, Var(x)))))
 
+  let%test_unit "let rec syntax" =
+    [%test_result: Term.t]
+      (read_term {|
+         let rec f(x:int@g2):int@g1 = f x in
+         f 0
+      |})
+      ~expect:Term.(App(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
+                            App(Var(f), Int(0))),
+                        Fix(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
+                                Lam(x, BaseInt, g2, App(Var(f), Var(x)))))))
+
 
 end)
 

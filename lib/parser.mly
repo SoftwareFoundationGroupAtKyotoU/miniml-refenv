@@ -3,29 +3,25 @@
 
     let makeop opcst a b = Term.(App(App(Const(opcst), a), b))
 
+    type argument =
+      | VarArg of Var.t * Typ.t * Cls.t
+      | ClsArg of Cls.t * Cls.t
+
     let rec expand_arglist arglist body =
       match arglist with
       | [] -> body
-      | (v, typ, cls) :: rest ->
+      | VarArg(v, typ, cls) :: rest ->
          expand_arglist rest (Term.Lam(v, typ, cls, body))
+      | ClsArg(cls, base) :: rest ->
+         expand_arglist rest (Term.PolyCls(cls, base, body))
 
     let rec expand_functype arglist result_typ =
       match arglist with
       | [] -> result_typ
-      | (_, typ, _) :: rest ->
+      | VarArg(_, typ, _) :: rest ->
          expand_functype rest (Typ.Func(typ, result_typ))
-
-    let rec expand_clsarglist clsarglist body =
-      match clsarglist with
-      | [] -> body
-      | (cls, base) :: rest ->
-         expand_clsarglist rest (Term.PolyCls(cls, base, body))
-
-    let rec expand_polyclstype clsarglist result_typ =
-      match clsarglist with
-      | [] -> result_typ
-      | (cls, base) :: rest ->
-         expand_polyclstype rest (Typ.PolyCls(cls, base, result_typ))
+      | ClsArg(cls, base) :: rest ->
+         expand_functype rest (Typ.PolyCls(cls, base, result_typ))
 
 %}
 
@@ -131,10 +127,6 @@ expr:
 (* Function / Context abstraction *)
   | FUN arglist RARROW expr %prec prec_fun
     { expand_arglist $2 $4 }
-  | FUN clsarglist RARROW expr %prec prec_fun
-    { expand_clsarglist $2 $4 }
-  | FUN clsarglist arglist RARROW expr %prec prec_fun
-    { expand_clsarglist $2 (expand_arglist $3 $5) }
 (* Application *)
   | expr simple_expr { Term.App($1, $2) }
 (* Classifier application *)
@@ -157,48 +149,33 @@ expr:
       let ftyp = expand_functype $3 $5 in
       Term.(App(Lam($2, ftyp, $7, $11), f))
     }
-  | LET bindingvar clsarglist COLON typ EQ expr IN expr %prec prec_let
+(* Let rec expression *)
+  | LET REC bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
     {
-      let f = expand_clsarglist $3 $7 in
-      let ftyp = expand_polyclstype $3 $5 in
-      Term.(App(Lam($2, ftyp, Cls.alloc(), $9), f))
+      let f = expand_arglist $4 $8 in
+      let ftyp = expand_functype $4 $6 in
+      Term.(App(Lam($3, ftyp, Cls.alloc(), $10),
+            Fix(Lam($3, ftyp, Cls.alloc(), f))))
     }
-  | LET bindingvar clsarglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
+  | LET REC bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
-      let f = expand_clsarglist $3 $9 in
-      let ftyp = expand_polyclstype $3 $5 in
-      Term.(App(Lam($2, ftyp, $7, $11), f))
-    }
-  | LET bindingvar clsarglist arglist COLON typ EQ expr IN expr %prec prec_let
-    {
-      let f = expand_clsarglist $3 (expand_arglist $4 $8) in
-      let ftyp = expand_polyclstype $3 (expand_functype $4 $6) in
-      Term.(App(Lam($2, ftyp, Cls.alloc(), $10), f))
-    }
-  | LET bindingvar clsarglist arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
-    {
-      let f = expand_clsarglist $3 (expand_arglist $4 $10) in
-      let ftyp = expand_polyclstype $3 (expand_functype $4 $6) in
-      Term.(App(Lam($2, ftyp, $8, $12), f))
+      let f = expand_arglist $4 $10 in
+      let ftyp = expand_functype $4 $6 in
+      Term.(App(Lam($3, ftyp, $8, $12),
+            Fix(Lam($3, ftyp, $8, f))))
     }
 
 arg:
   | LPAREN bindingvar COLON typ AT referringcls RPAREN
-    { ($2, $4, $6) }
+    { VarArg($2, $4, $6) }
   | LPAREN bindingvar COLON typ RPAREN
-    { ($2, $4, Cls.alloc()) }
+    { VarArg($2, $4, Cls.alloc()) }
+  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET
+    { ClsArg($2, $4) }
 
 arglist:
   | arg { [$1] }
   | arglist arg { $2 :: $1 }
-
-clsarg:
-  | LBRACKET bindingcls CLSBOUND referringcls RBRACKET
-    { ($2, $4) }
-
-clsarglist:
-  | clsarg { [$1] }
-  | clsarglist clsarg { $2 :: $1 }
 
 block:
   | LBRACE expr RBRACE { $2 }

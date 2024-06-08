@@ -30,7 +30,19 @@ let%test_unit "hoge" =
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some("int -> int" |> Cui.read_typ))
+    ~expect:(Option.Some("int -> int" |> Cui.read_typ));
+  [%test_result: Typ.t option]
+    ({|
+         let rec spow[g1:>!](n:int)(x:<int@g1>):<int@g1> =
+           if n < 1 then
+             `[_:>g1]{ 1 }
+           else
+             `[_:>g1]{ ~x * ~{spow@@g1 (n - 1) x}} in
+         spow@@! 4 `[_:>!]{ 3 }
+     |}
+     |> Cui.read_term
+     |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.Some("<int@!>" |> Cui.read_typ))
 
 let%test_unit "big test cases" [@tags "disabled"] =
   let subject = Cui.read_term {|
