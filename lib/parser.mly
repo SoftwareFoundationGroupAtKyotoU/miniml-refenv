@@ -91,8 +91,8 @@ simple_expr: (* Expressions that can be used as an argument as-is *)
   | FALSE { Term.Bool(false) }
   | referringvar { Term.Var($1) }
 (* Quote *)
-  | BACKQUOTE LBRACKET bindingcls CLSBOUND referringcls RBRACKET block
-    { Term.Quo($3, $5, $7) }
+  | BACKQUOTE LBRACE AT referringcls expr RBRACE
+    { Term.Quo($4, $5) }
 (* Unquote *)
   | TILDE INTLIT block
     { Term.(Unq($2, $3)) }

@@ -141,13 +141,12 @@ let%test_module "read term" = (module struct
 
   let%test_unit "quote" =
     [%test_result: Term.t]
-      (read_term "`[g1:>!]{ f 1 }")
-      ~expect:Term.(Quo(g1,
-                        Cls.init,
+      (read_term "`{@! f 1 }")
+      ~expect:Term.(Quo(Cls.init,
                         App(Var(f), Int(1))));
-    let subject = read_term "`[_:>g2]{ f 1 }" in
+    let subject = read_term "`{@g2 f 1 }" in
     (match subject with
-     | Term.Quo (_, _, _) -> assert(true)
+     | Term.Quo (_, _) -> assert(true)
      | _ -> failwith "subject is expected to be a quotation")
 
   let%test_unit "unquote" =
@@ -198,8 +197,8 @@ let%test_module "read term" = (module struct
       (read_term "let f(x:int@g1):int@g2 = x + 1 in f 1")
       ~expect:Term.(App(Lam(f, Typ.(Func(BaseInt, BaseInt)), g2, App(Var(f), Int(1))), Lam(x, BaseInt, g1, op (Var x) Const.Plus (Int 1))));
     [%test_result: Term.t]
-      (read_term "let f[g1:>!]:<int@g1>@g2 = `[g3:>g1]{1} in f@@!")
-      ~expect:Term.(App(Lam(f, Typ.(PolyCls(g1, Cls.init, Code(g1, BaseInt))), g2, AppCls(Var(f), Cls.init)), PolyCls(g1, Cls.init, Quo(g3, g1, Int(1)))));
+      (read_term "let f[g1:>!]:<int@g1>@g2 = `{@g1 1} in f@@!")
+      ~expect:Term.(App(Lam(f, Typ.(PolyCls(g1, Cls.init, Code(g1, BaseInt))), g2, AppCls(Var(f), Cls.init)), PolyCls(g1, Cls.init, Quo(g1, Int(1)))));
     [%test_result: Term.t]
       (read_term "let f[g1:>!](x:<int@g1>@g3):<int@g1>@g2 = x in f")
       ~expect:Term.(App(Lam(f, Typ.(PolyCls(g1, Cls.init, Func(Code(g1, BaseInt), Code(g1, BaseInt)))), g2, Var(f)), PolyCls(g1, Cls.init, Lam(x, Code(g1, BaseInt), g3, Var(x)))))

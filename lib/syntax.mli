@@ -66,7 +66,7 @@ module Term: sig
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
-    | Quo of Cls.t * Cls.t * t
+    | Quo of Cls.t * t
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
@@ -82,7 +82,7 @@ module Context: sig
   type elm =
     | Init of Cls.t
     | Var of Var.t * Typ.t * Cls.t
-    | Lock of Cls.t * Cls.t
+    | Lock of Cls.t
     | Unlock of int
     | Cls of Cls.t * Cls.t
   [@@deriving compare, equal, sexp]

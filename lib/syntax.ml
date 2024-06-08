@@ -199,7 +199,7 @@ module Term = struct
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
-    | Quo of Cls.t * Cls.t * t
+    | Quo of Cls.t * t
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
@@ -220,8 +220,8 @@ module Term = struct
     | App (func, arg) ->
       App (func |> rename_var from dest,
            arg |> rename_var from dest)
-    | Quo (cls, base, body) ->
-      Quo (cls, base, body |> rename_var from dest)
+    | Quo (base, body) ->
+      Quo (base, body |> rename_var from dest)
     | Unq (diff, body) ->
       Unq (diff, body |> rename_var from dest)
     | PolyCls (cls, base, body) ->
@@ -251,10 +251,8 @@ module Term = struct
     | App (func, arg) ->
       App (func |> rename_cls from dest,
            arg |> rename_cls from dest)
-    | Quo (cls, base, body) ->
-      if Cls.equal from cls
-      then Quo (cls, apply base, body)
-      else Quo (cls, apply base, body |> rename_cls from dest)
+    | Quo (base, body) ->
+      Quo (apply base, body |> rename_cls from dest)
     | Unq (diff, body) ->
       Unq (diff, body |> rename_cls from dest)
     | PolyCls (cls, base, body) ->
@@ -275,7 +273,7 @@ module Context = struct
   type elm =
     | Init of Cls.t
     | Var of Var.t * Typ.t * Cls.t
-    | Lock of Cls.t * Cls.t
+    | Lock of Cls.t
     | Unlock of int
     | Cls of Cls.t * Cls.t
   [@@deriving compare, equal, sexp]
@@ -294,7 +292,7 @@ module Context = struct
     else
       (match ctx with
        | Init _ :: _ -> failwith "diff too large"
-       | Lock (_, _) :: rest -> pop rest (diff - 1)
+       | Lock _ :: rest -> pop rest (diff - 1)
        | Unlock (diff2) :: rest -> pop rest (diff + diff2)
        | Var (_, _, _) :: rest
        | Cls (_, _) :: rest ->
@@ -305,7 +303,7 @@ module Context = struct
     (match ctx with
      | Init cls :: _ -> cls
      | Var (_, _, cls) :: _ -> cls
-     | Lock (cls, _) :: _ -> cls
+     | Lock base :: _ -> base
      | Unlock (diff) :: rest -> current (pop rest diff)
      | Cls (_, _) :: rest -> current rest
      | [] -> failwith "unreachable")
@@ -314,8 +312,8 @@ module Context = struct
     (match ctx with
      | Init _ :: _ -> 0
      | Var (_, _, _) :: rest -> depth rest
-     | Lock (_, _) :: rest -> depth rest + 1
-     | Unlock (diff) :: rest -> depth rest - diff
+     | Lock _ :: rest -> depth rest + 1
+     | Unlock diff :: rest -> depth rest - diff
      | Cls (_, _) :: rest -> depth rest
      | [] -> failwith "unreachable")
 
@@ -324,9 +322,9 @@ module Context = struct
       (match ctx with
        | Init cls :: _ -> cls :: acc
        | Var (_, _, cls) :: rest
-       | Lock (cls, _) :: rest
        | Cls (cls, _) :: rest -> recur rest (cls :: acc)
-       | Unlock (_) :: rest -> recur rest acc
+       | Lock _  :: rest
+       | Unlock _ :: rest -> recur rest acc
        | [] -> failwith "unreachable") in
     recur ctx [] |> List.rev
 
@@ -335,8 +333,8 @@ module Context = struct
       (match ctx with
        | Init _ :: _ -> acc
        | Var (var, _, _) :: rest -> recur rest (var :: acc)
-       | Lock (_, _) :: rest
-       | Unlock (_) :: rest
+       | Lock _ :: rest
+       | Unlock _ :: rest
        | Cls (_, _) :: rest -> recur rest acc
        | [] -> failwith "unreachable") in
     recur ctx [] |> List.rev
@@ -353,12 +351,11 @@ end
 let%test_module "context" = (module struct
   open Context
 
-  let g1 = Cls.alloc ()
+  let g1 = Cls.init
   let g2 = Cls.alloc ()
   let g3 = Cls.alloc ()
   let g4 = Cls.alloc ()
   let g5 = Cls.alloc ()
-  let g6 = Cls.alloc ()
   let g7 = Cls.alloc ()
 
   let v1 = Var.alloc ()
@@ -366,24 +363,24 @@ let%test_module "context" = (module struct
   let v3 = Var.alloc ()
   let v4 = Var.alloc ()
 
-  let ctx1 = [Init g1]
-  let ctx2 = [Init g1; Var(v1, BaseBool, g2)] |> List.rev
-  let ctx3 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1)] |> List.rev
-  let ctx4 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0)] |> List.rev
-  let ctx5 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Unlock(0); Unlock(1)] |> List.rev
-  let ctx6 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2); Unlock(2)] |> List.rev
-  let ctx7 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2); Unlock(1); Unlock(1)] |> List.rev
-  let ctx8 = [Init g1; Var(v1, BaseInt, g2); Cls(g3, g2)] |> List.rev
-  let ctx9 = [Init g1; Lock(g2, g1); Unlock(1); Lock(g3, g2); Unlock(1)] |> List.rev
-  let ctx10 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Lock(g4, g2)] |> List.rev
-  let ctx11 = [Init g1; Var(v1, BaseInt, g2); Var(v2, BaseBool, g3); Lock(g4, g1)] |> List.rev
-  let ctx12 = [Init g1; Var(v1, BaseInt, g2); Lock(g3, g1); Var(v2, BaseBool, g4); Unlock(1); Var(v3, BaseInt, g5); Lock(g6, g2); Var(v4, BaseInt, g7); Unlock(1)] |> List.rev
+  let ctx1 = Context.from []
+  let ctx2 = Context.from [Var(v1, BaseBool, g2)]
+  let ctx3 = Context.from [Var(v1, BaseInt, g2); Lock g1]
+  let ctx4 = Context.from [Var(v1, BaseInt, g2); Lock g1; Unlock(0)]
+  let ctx5 = Context.from [Var(v1, BaseInt, g2); Lock g1; Unlock(0); Unlock(1)]
+  let ctx6 = Context.from [Var(v1, BaseInt, g2); Lock g1; Lock g2; Unlock(2)]
+  let ctx7 = Context.from [Var(v1, BaseInt, g2); Lock g1; Lock g2; Unlock(1); Unlock(1)]
+  let ctx8 = Context.from [Var(v1, BaseInt, g2); Cls(g3, g2)]
+  let ctx9 = Context.from [Lock g1; Unlock(1); Lock g1; Unlock(1)]
+  let ctx10 = Context.from [Var(v1, BaseInt, g2); Lock g1; Lock g2]
+  let ctx11 = Context.from [Var(v1, BaseInt, g2); Var(v2, BaseBool, g3); Lock g1]
+  let ctx12 = Context.from [Var(v1, BaseInt, g2); Lock g1; Var(v2, BaseBool, g4); Unlock(1); Var(v3, BaseInt, g5); Lock g2; Var(v4, BaseInt, g7); Unlock(1)]
 
   let%test_unit "get current classifier" =
     [%test_eq: Cls.t] (current ctx1) g1;
     [%test_eq: Cls.t] (current ctx2) g2;
-    [%test_eq: Cls.t] (current ctx3) g3;
-    [%test_eq: Cls.t] (current ctx4) g3;
+    [%test_eq: Cls.t] (current ctx3) g1;
+    [%test_eq: Cls.t] (current ctx4) g1;
     [%test_eq: Cls.t] (current ctx5) g2;
     [%test_eq: Cls.t] (current ctx6) g2;
     [%test_eq: Cls.t] (current ctx7) g2;
@@ -405,13 +402,9 @@ let%test_module "context" = (module struct
   let%test_unit "get cls domain" =
     [%test_eq: Cls.t list] (domain_cls ctx1) [g1];
     [%test_eq: Cls.t list] (domain_cls ctx2) [g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx3) [g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx4) [g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx5) [g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx6) [g4; g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx8) [g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx9) [g3; g2; g1];
-    [%test_eq: Cls.t list] (domain_cls ctx10) [g4; g3; g2; g1]
+    [%test_eq: Cls.t list] (domain_cls ctx3) [g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx5) [g2; g1];
+    [%test_eq: Cls.t list] (domain_cls ctx8) [g3; g2; g1]
 
   let%test_unit "get var domain" =
     [%test_eq: Var.t list] (domain_var ctx1) [];
