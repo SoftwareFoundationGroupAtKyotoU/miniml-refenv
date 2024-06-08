@@ -44,7 +44,7 @@ let%test_unit "hoge" =
      |> Typechecker.typeinfer Context.empty)
     ~expect:(Option.Some("<int@!>" |> Cui.read_typ))
 
-let%test_unit "big test cases" [@tags "disabled"] =
+let%test_unit "big test cases" =
   let subject = Cui.read_term {|
       let rec spower_[g:>!](n:int)(xq:<int@g>)(cont:[h:>g]<int@h>-><int@h>):<int@g> =
         if n == 0 then
@@ -52,22 +52,22 @@ let%test_unit "big test cases" [@tags "disabled"] =
         else if n == 1 then
           cont@@g xq
         else if n mod 2 == 1 then
-          spower_@@g (n-1) xq
+          spower_@@g (n - 1) xq
             (fun[g1:>g](yq:<int@g1>) -> cont@@g1 `[_:>g1]{~xq * ~yq})
         else
           `[_:>g] {
             let x2:int@g2 = ~xq * ~xq in
             ~{
-              spower_@@g2 (n/2) `[_:>g2]{x2}
+              spower_@@g2 (n / 2) `[_:>g2]{x2}
                 (fun[g3:>g2](yq:<int@g3>) -> cont@@g3 yq)
             }
           } in
       let spower(n:int):<int->int@!> =
-        `[_:>!]{ fun x:int@g ->
+        `[_:>!]{ fun(x:int@g)->
            ~{ spower_@@g n `[_:>g]{x} (fun[g1:>g](y:<int@g1>) -> y) }
         } in
       ~0{spower 11} 2
 |} in
-  [%test_eq: Typ.t option]
+  [%test_result: Typ.t option]
     (Typechecker.typeinfer Context.empty subject)
-    (Option.None)
+    ~expect:(Option.Some(BaseInt))
