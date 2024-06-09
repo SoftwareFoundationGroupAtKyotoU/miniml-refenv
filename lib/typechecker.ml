@@ -538,6 +538,45 @@ let%test_module "typeinfer" = (module struct
            Term.(If(Int(1), Int(1), Int(2))))
         ~expect:(Option.None)
 
+    let%test_unit "unit" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.Nil)
+        ~expect:(Option.Some(Typ.Unit));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.(from [Var (v1, Typ.(Func(Unit, BaseInt)), g2)])
+           Term.(App(Var v1, Nil)))
+        ~expect:(Option.Some(Typ.BaseInt))
+
+    let%test_unit "ref" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Ref (Int 10)))
+        ~expect:(Option.Some(Typ.(Ref BaseInt)));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Ref (Quo(Cls.init, Int 1))))
+        ~expect:(Option.Some(Typ.(Ref (Code(Cls.init, BaseInt)))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Deref (Ref (Int 10))))
+        ~expect:(Option.Some(Typ.BaseInt));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Deref (Ref (Int 10))))
+        ~expect:(Option.Some(Typ.BaseInt));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.(from [Var (v1, Typ.(Ref BaseInt), g2)])
+           Term.(Assign (Var v1, Int 10)))
+        ~expect:(Option.Some(Typ.Unit))
+
     let%test_unit "shadowing" =
       [%test_result: Typ.t option]
         (typeinfer
