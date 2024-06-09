@@ -73,7 +73,7 @@ let%test_unit "big test cases" =
     (subject |> Typechecker.typeinfer Context.empty)
     ~expect:(Option.Some(Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
   [%test_result: Evaluator.Value.t]
-    (subject |> Evaluator.eval 0 [] [] (fun x -> x))
+    (subject |> Evaluator.eval_v)
     ~expect:(Evaluator.Value.Code(
         {|
          `{@!
@@ -116,5 +116,5 @@ let%test_unit "big test cases" =
     (subject |> Typechecker.typeinfer Context.empty)
     ~expect:(Option.Some(BaseInt));
   [%test_result: Evaluator.Value.t]
-    (subject |> Evaluator.eval 0 [] [] (fun x -> x))
+    (subject |> Evaluator.eval_v)
     ~expect:(Evaluator.Value.Int(4096));

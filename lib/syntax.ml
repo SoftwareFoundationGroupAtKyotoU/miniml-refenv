@@ -41,6 +41,8 @@ module Typ = struct
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
+    | Unit
+    | Ref of t
   [@@deriving compare, sexp]
 
   let rec rename_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
@@ -60,6 +62,8 @@ module Typ = struct
         PolyCls(cls, dest, ty1 |> rename_cls from dest)
       else
         PolyCls(cls, base, ty1 |> rename_cls from dest)
+    | Unit -> Unit
+    | Ref ty -> Ref (ty |> rename_cls from dest)
 
   let rec free_cls (typ: t): Cls.set =
     (match typ with
@@ -68,7 +72,9 @@ module Typ = struct
      | Func (ty1, ty2) -> Set.union (free_cls ty1) (free_cls ty2)
      | Code (cls, ty) -> Set.add (free_cls ty) cls
      | PolyCls (cls, base, ty) ->
-       (Set.remove (Set.add (free_cls ty) base) cls))
+       (Set.remove (Set.add (free_cls ty) base) cls)
+     | Ref ty -> free_cls ty
+     | Unit -> Set.empty (module Cls))
 
   let rec equal (ty1: t) (ty2: t) =
     match (ty1, ty2) with
@@ -80,6 +86,8 @@ module Typ = struct
       (Cls.equal base1 base2) &&
       let clsfresh = Cls.alloc () in
       equal (tbody1 |> rename_cls cls1 clsfresh) (tbody2 |> rename_cls cls2 clsfresh)
+    | Ref ty1, Ref ty2 -> equal ty1 ty2
+    | Unit, Unit -> true
     | _ -> false
 
   let compare (ty1: t) (ty2: t) =
@@ -203,6 +211,10 @@ module Term = struct
     | AppCls of t * Cls.t
     | Fix of t
     | If of t * t * t
+    | Nil
+    | Ref of t
+    | Deref of t
+    | Assign of t * t
   [@@deriving compare, equal, sexp]
 
   let rec rename_var(from:Var.t)(dest:Var.t)(tm:t): t =
@@ -241,6 +253,11 @@ module Term = struct
       If (cond |> rename_var from dest,
           thenn |> rename_var from dest,
           elsee |> rename_var from dest)
+    | Nil -> Nil
+    | Ref tm -> Ref (tm |> rename_var from dest)
+    | Deref tm -> Deref (tm |> rename_var from dest)
+    | Assign (loc, newv) ->
+      Assign (loc |> rename_var from dest, newv |> rename_var from dest)
 
   let rec rename_cls(from:Cls.t)(dest:Cls.t)(tm:t): t =
     let apply = Cls.rename_cls from dest in
@@ -284,6 +301,11 @@ module Term = struct
       If (cond |> rename_cls from dest,
           thenn |> rename_cls from dest,
           elsee |> rename_cls from dest)
+    | Nil -> Nil
+    | Ref tm -> Ref (tm |> rename_cls from dest)
+    | Deref tm -> Deref (tm |> rename_cls from dest)
+    | Assign (loc, newv) ->
+      Assign (loc |> rename_cls from dest, newv |> rename_cls from dest)
 
   let rec equal (a : t)(b : t): bool =
     match (a, b) with
@@ -328,6 +350,11 @@ module Term = struct
       equal af bf
     | (If (acond, athen, aelse), If (bcond, bthen, belse)) ->
       equal acond bcond && equal athen bthen && equal aelse belse
+    | Nil, Nil -> true
+    | Ref a, Ref b -> equal a b
+    | Deref a, Deref b -> equal a b
+    | Assign (aloc, anew), Assign (bloc, bnew) ->
+      equal aloc bloc && equal anew bnew
     | _ -> false
 
   let compare (a : t)(b : t): int =

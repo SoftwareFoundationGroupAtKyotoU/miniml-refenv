@@ -21,6 +21,8 @@ module Typ: sig
     | Func of t * t
     | Code of Cls.t * t
     | PolyCls of Cls.t * Cls.t * t
+    | Unit
+    | Ref of t
   [@@deriving sexp]
 
   val equal: t -> t -> bool
@@ -78,6 +80,10 @@ module Term: sig
     | AppCls of t * Cls.t
     | Fix of t
     | If of t * t * t
+    | Nil
+    | Ref of t
+    | Deref of t
+    | Assign of t * t
   [@@deriving sexp]
 
   val equal: t -> t -> bool

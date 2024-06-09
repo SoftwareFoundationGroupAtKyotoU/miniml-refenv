@@ -36,7 +36,11 @@ and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
      (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) &&
      well_formed_type ctx ty1
    | Typ.PolyCls (cls, base, ty1) ->
-     well_formed_type (Cls(cls, base) :: ctx) ty1)
+     well_formed_type (Cls(cls, base) :: ctx) ty1
+   | Typ.Unit -> true
+   | Typ.Ref ty ->
+     well_formed_type ctx ty
+  )
 
 let%test_module "well_formed_context" = (module struct
   open Context
@@ -332,7 +336,27 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
        if Typ.equal tycond Typ.BaseBool && Typ.equal tythen tyelse then
          return tythen
        else
-         Option.None)
+         Option.None
+     | Term.Nil -> return Typ.Unit
+     | Term.Ref tm ->
+       typeinfer ctx tm >>= fun inferred ->
+       return (Typ.Ref inferred)
+     | Term.Deref tm ->
+       typeinfer ctx tm >>= fun inferred ->
+       (match inferred with
+        | Ref ty -> return ty
+        | _ -> Option.None)
+     | Term.Assign (loc, newv) ->
+       typeinfer ctx loc >>= fun locinf ->
+       typeinfer ctx newv >>= fun newinf ->
+       (match (locinf, newinf) with
+        | Ref ty1, ty2 ->
+          if Typ.equal ty1 ty2
+          then return Typ.Unit
+          else Option.None
+        | _ -> Option.None
+       )
+    )
 
 let%test_module "typeinfer" = (module struct
   let g1 = Cls.init

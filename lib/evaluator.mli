@@ -22,6 +22,13 @@ module CodeEnv : sig
   val rename_cls_in_typ: Typ.t -> t -> Typ.t
 end
 
+module Loc : sig
+  type t = int
+  [@@deriving compare, equal, sexp]
+
+  val alloc : unit -> t
+end
+
 module Value : sig
   type t =
     | Int of int
@@ -30,12 +37,26 @@ module Value : sig
     | Fix of t RuntimeEnv.t * CodeEnv.t * Term.t
     | Code of Term.t
     | Fut of Term.t
+    | Loc of Loc.t
+    | Nil
   [@@deriving compare, equal, sexp]
+end
+
+module Store : sig
+  type t = (Loc.t * Value.t) list
+  [@@deriving compare, equal, sexp]
+
+  val lookup : Loc.t -> t -> Value.t
+
+  val update : Loc.t -> Value.t -> t -> t
 end
 
 val eval: int ->
   Value.t RuntimeEnv.t ->
   CodeEnv.t ->
-  (Value.t -> Value.t) ->
+  Store.t ->
+  ((Value.t * Store.t) -> (Value.t * Store.t)) ->
   Term.t ->
-  Value.t
+  Value.t * Store.t
+
+val eval_v: Term.t -> Value.t
