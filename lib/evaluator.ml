@@ -66,6 +66,7 @@ module Value = struct
     | Int of int
     | Bool of bool
     | Clos of t RuntimeEnv.t * CodeEnv.t * Term.t
+    | Fix of t RuntimeEnv.t * CodeEnv.t * Term.t
     | Code of Term.t
     | Fut of Term.t
   [@@deriving compare, equal, sexp]
@@ -131,6 +132,8 @@ let rec eval(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)(k:Value.t -> Va
          match funcv with
          | Clos(renv', cenv', Lam(var, _, _, body)) ->
            body |> eval 0 ((var, argv) :: renv') cenv' k
+         | Fix(renv', cenv', Lam(self, _, _, Lam(var, _, _, body))) ->
+           body |> eval 0 ((var, argv) :: (self, funcv) :: renv') cenv' k
          | _ -> failwith "hoge 0 app"))
    | (0, Term.Quo (cls, body)) ->
      body |> eval 1 renv cenv (fun futv ->
@@ -150,9 +153,15 @@ let rec eval(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)(k:Value.t -> Va
        tm |> eval 0 renv cenv (fun v -> match v with
            | Clos(renv', cenv', PolyCls(cls2, _, body)) ->
              body |> eval 0 renv' (CodeEnv.Cls(cls2, cls1)::cenv') k
+           | Fix(renv', cenv', Lam(self, _, _, PolyCls(cls2, _, body))) ->
+             body |> eval 0 ((self, v) :: renv') (CodeEnv.Cls(cls2, cls1)::cenv') k
            | _ -> failwith "hogege 0 appcls")
      | (0, Term.Fix f) ->
-       Term.(App(f,(Fix f))) |> eval 0 renv cenv k
+       f |> eval 0 renv cenv (fun fv ->
+           match fv with
+           | Clos(renv', cenv', lam) -> Value.Fix (renv', cenv', lam) |> k
+           | _ -> failwith "hogehoge 0 fix"
+         )
      | (0, Term.If (cond, thenn, elsee)) ->
        cond |> eval 0 renv cenv (fun condv ->
            (match condv with
@@ -289,6 +298,20 @@ let%test_unit "hoge" =
      |> Cui.read_term
      |> eval 0 [] [] (fun x -> x))
     ~expect:(Value.Int 1)
+
+let%test_unit "recursion" =
+  [%test_result: Value.t]
+    ({|
+       let rec f(x:int):int =
+         if x < 1
+         then 0
+         else x + f(x - 1) in
+       f 10
+      |}
+     |> Cui.read_term
+     |> eval 0 [] [] (fun x -> x))
+    ~expect:(Value.Int 55)
+
 
 let%test_unit "code generation" =
   [%test_result: Value.t]
