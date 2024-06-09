@@ -211,7 +211,42 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
     (match tm with
      | Term.Int _ -> Option.some Typ.BaseInt
      | Term.Bool _ -> Option.some Typ.BaseBool
-     | Term.Const c -> Option.some (Const.typeOf c)
+     | Term.BinOp (op, tm1, tm2) ->
+       tm1 |> typeinfer ctx >>= fun inferred1 ->
+       tm2 |> typeinfer ctx >>= fun inferred2 ->
+       (match op with
+        | BinOp.Plus
+        | BinOp.Mult
+        | BinOp.Minus
+        | BinOp.Div
+        | BinOp.Mod ->
+          (match (inferred1, inferred2) with
+           | (Typ.BaseInt, Typ.BaseInt) -> return Typ.BaseInt
+           | _ -> Option.None)
+        | BinOp.LT
+        | BinOp.Equal ->
+          (match (inferred1, inferred2) with
+           | (Typ.BaseInt, Typ.BaseInt) -> return Typ.BaseBool
+           | _ -> Option.None)
+       )
+     | Term.UniOp (op, tm1) ->
+       tm1 |> typeinfer ctx >>= fun inferred ->
+       (match op with
+        | UniOp.Not ->
+          match inferred with
+          | Typ.BaseBool -> return Typ.BaseBool
+          | _ -> Option.None
+       )
+     | Term.ShortCircuitOp (op, tm1, tm2) ->
+       tm1 |> typeinfer ctx >>= fun inferred1 ->
+       tm2 |> typeinfer ctx >>= fun inferred2 ->
+       (match op with
+        | ShortCircuitOp.And
+        | ShortCircuitOp.Or ->
+          (match (inferred1, inferred2) with
+           | (Typ.BaseBool, Typ.BaseBool) -> return Typ.BaseBool
+           | _ -> Option.None)
+       )
      | Term.Var v ->
        Context.lookup_var ctx v >>= fun (ty, cls) ->
        ty |> some_if (reachable_intuitionistic ctx cls (Context.current ctx))
@@ -328,17 +363,31 @@ let%test_module "typeinfer" = (module struct
          Term.(Bool false))
       ~expect:(Option.Some(Typ.BaseBool))
 
-  let%test_unit "constants" =
-    [%test_result: Typ.t option]
-      (typeinfer
-         Context.[Init g1]
-         Term.(Const Const.Plus))
-      ~expect:(Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
+  let%test_unit "Binary operators" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
-         Term.(App(App(Const(Const.Plus), Var(v1)), Var(v1))))
-      ~expect:(Option.Some(Typ.BaseInt))
+         Term.(BinOp(BinOp.Plus, Var(v1), Var(v1))))
+      ~expect:(Option.Some(Typ.BaseInt));
+    [%test_result: Typ.t option]
+      (typeinfer
+         Context.(from [Var(v1, BaseInt, g2)])
+         Term.(BinOp(BinOp.LT, Var(v1), Var(v1))))
+      ~expect:(Option.Some(Typ.BaseBool))
+
+  let%test_unit "Unary operators" =
+    [%test_result: Typ.t option]
+      (typeinfer
+         Context.(from [Var(v1, BaseBool, g2)])
+         Term.(UniOp(UniOp.Not, Var(v1))))
+      ~expect:(Option.Some(Typ.BaseBool))
+
+    let%test_unit "Shortcircuit operators" =
+    [%test_result: Typ.t option]
+      (typeinfer
+         Context.(from [Var(v1, BaseBool, g2)])
+         Term.(ShortCircuitOp(ShortCircuitOp.And, Var(v1), Var(v1))))
+      ~expect:(Option.Some(Typ.BaseBool))
 
   let%test_unit "variables" =
     [%test_result: Typ.t option]

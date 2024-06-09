@@ -1,8 +1,6 @@
 %{
     open Syntax
 
-    let makeop opcst a b = Term.(App(App(Const(opcst), a), b))
-
     type argument =
       | VarArg of Var.t * Typ.t * Cls.t
       | ClsArg of Cls.t * Cls.t
@@ -114,18 +112,18 @@ expr:
   (* Literals *)
   | simple_expr { $1 }
   (* Arithmetic operators *)
-  | expr PLUS expr { makeop Const.Plus $1 $3 }
-  | expr MINUS expr { makeop Const.Minus $1 $3 }
-  | expr MULT expr { makeop Const.Mult $1 $3 }
-  | expr DIV expr { makeop Const.Div $1 $3 }
-  | expr MOD expr { makeop Const.Mod $1 $3 }
+  | expr PLUS expr  { Term.BinOp(BinOp.Plus, $1, $3) }
+  | expr MINUS expr { Term.BinOp(BinOp.Minus, $1, $3) }
+  | expr MULT expr  { Term.BinOp(BinOp.Mult, $1, $3) }
+  | expr DIV expr   { Term.BinOp(BinOp.Div, $1, $3) }
+  | expr MOD expr   { Term.BinOp(BinOp.Mod, $1, $3) }
 (* Comparison operator *)
-  | expr EQUAL expr { makeop Const.Equal $1 $3 }
-  | expr LT expr { makeop Const.LT $1 $3 }
+  | expr EQUAL expr { Term.BinOp(BinOp.Equal, $1, $3) }
+  | expr LT expr    { Term.BinOp(BinOp.LT, $1, $3) }
 (* Logical operator *)
-  | NOT expr { Term.(App(Const(Const.Not), $2))}
-  | expr AND expr { makeop Const.And $1 $3 }
-  | expr OR expr { makeop Const.Or $1 $3 }
+  | NOT expr      { Term.UniOp(UniOp.Not, $2) }
+  | expr AND expr { Term.ShortCircuitOp(ShortCircuitOp.And, $1, $3) }
+  | expr OR expr  { Term.ShortCircuitOp(ShortCircuitOp.Or, $1, $3) }
 (* If statement *)
   | IF expr THEN expr ELSE expr %prec prec_if { Term.If($2, $4, $6) }
 (* Function / Context abstraction *)

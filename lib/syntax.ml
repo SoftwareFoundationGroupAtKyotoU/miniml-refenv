@@ -162,40 +162,38 @@ let%test_unit "alloc generate different variables" =
   assert (Var.equal v1 v1);
   assert (not (Var.equal v1 v2))
 
-module Const = struct
+module BinOp = struct
   type t =
-    (* Arithmetic operators *)
     | Plus
-    | Minus
     | Mult
-    | LT
-    | Equal
+    | Minus
     | Div
     | Mod
-    (* Boolean operators *)
+    | LT
+    | Equal
+  [@@deriving compare, equal, sexp]
+end
+
+module UniOp = struct
+  type t =
     | Not
+  [@@deriving compare, equal, sexp]
+end
+
+module ShortCircuitOp = struct
+  type t =
     | And
     | Or
   [@@deriving compare, equal, sexp]
-
-  let typeOf (x : t) : Typ.t = match x with
-    | Plus ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | Minus -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | Mult ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | Div ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | Mod ->  Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseInt))
-    | LT ->    Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
-    | Equal -> Typ.Func(Typ.BaseInt, Typ.Func(Typ.BaseInt, Typ.BaseBool))
-    | Not ->   Typ.Func(Typ.BaseBool, Typ.BaseBool)
-    | And ->   Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
-    | Or ->    Typ.Func(Typ.BaseBool, Typ.Func(Typ.BaseBool, Typ.BaseBool))
 end
 
 module Term = struct
   type t =
     | Int of int
     | Bool of bool
-    | Const of Const.t
+    | BinOp of BinOp.t * t * t
+    | UniOp of UniOp.t * t
+    | ShortCircuitOp of ShortCircuitOp.t * t * t
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
@@ -211,7 +209,17 @@ module Term = struct
     match (tm : t) with
     | Int _ -> tm
     | Bool _ -> tm
-    | Const _ -> tm
+    | BinOp (op, tm1, tm2) ->
+      let tm1' = tm1 |> rename_var from dest in
+      let tm2' = tm2 |> rename_var from dest in
+      BinOp (op, tm1', tm2')
+    | UniOp (op, tm1) ->
+      let tm1' = tm1 |> rename_var from dest in
+      UniOp (op, tm1')
+    | ShortCircuitOp (op, tm1, tm2) ->
+      let tm1' = tm1 |> rename_var from dest in
+      let tm2' = tm2 |> rename_var from dest in
+      ShortCircuitOp (op, tm1', tm2')
     | Var v -> if Var.equal from v then Var(dest) else tm
     | Lam (v, typ, cls, body) ->
       if Var.equal from v
@@ -239,7 +247,17 @@ module Term = struct
     match (tm : t) with
     | Int _ -> tm
     | Bool _ -> tm
-    | Const _ -> tm
+    | BinOp (op, tm1, tm2) ->
+      let tm1' = tm1 |> rename_cls from dest in
+      let tm2' = tm2 |> rename_cls from dest in
+      BinOp (op, tm1', tm2')
+    | UniOp (op, tm1) ->
+      let tm1' = tm1 |> rename_cls from dest in
+      UniOp (op, tm1')
+    | ShortCircuitOp (op, tm1, tm2) ->
+      let tm1' = tm1 |> rename_cls from dest in
+      let tm2' = tm2 |> rename_cls from dest in
+      ShortCircuitOp (op, tm1', tm2')
     | Var _ -> tm
     | Lam (v, typ, cls, body) ->
       if Cls.equal from cls

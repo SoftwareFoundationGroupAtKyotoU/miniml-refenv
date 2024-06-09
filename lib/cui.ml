@@ -4,8 +4,6 @@ let read_term (input: string): Term.t =
   Parser.toplevel Lexer.main (Lexing.from_string input)
 
 let%test_module "read term" = (module struct
-  let op a c b = Term.(App(App(Const(c), a), b))
-
   let g1 = Cls.from_string "g1"
   let g2 = Cls.from_string "g2"
   let g3 = Cls.from_string "g3"
@@ -35,53 +33,55 @@ let%test_module "read term" = (module struct
   let%test_unit "arith" =
     [%test_result: Term.t]
       (read_term "1 + 2")
-      ~expect:Term.(op (Int 1) Const.Plus (Int 2));
+      ~expect:Term.(BinOp(BinOp.Plus, (Int 1), (Int 2)));
     [%test_result: Term.t]
       (read_term "1 + 2 + 3")
-      ~expect:Term.(op (op (Int 1) Const.Plus (Int 2)) Const.Plus (Int 3));
+      ~expect:Term.(BinOp(BinOp.Plus, BinOp(BinOp.Plus, (Int 1), (Int 2)), Int(3)));
     [%test_result: Term.t]
       (read_term "1 - 2")
-      ~expect:Term.(op (Int 1) Const.Minus (Int 2));
+      ~expect:Term.(BinOp(BinOp.Minus, (Int 1), (Int 2)));
     [%test_result: Term.t]
       (read_term "1 - 2 - 3")
-      ~expect:Term.(op (op (Int 1) Const.Minus (Int 2)) Const.Minus (Int 3));
+      ~expect:Term.(BinOp(BinOp.Minus, BinOp(BinOp.Minus, (Int 1), (Int 2)), Int(3)));
     [%test_result: Term.t]
       (read_term "1 + 2 - 3")
-      ~expect:Term.(op (op (Int 1) Const.Plus (Int 2)) Const.Minus (Int 3));
+      ~expect:Term.(BinOp(BinOp.Minus, BinOp(BinOp.Plus, (Int 1), (Int 2)), Int(3)));
     [%test_result: Term.t]
       (read_term "1 * 2")
-      ~expect:Term.(op (Int 1) Const.Mult (Int 2));
+      ~expect:Term.(BinOp(BinOp.Mult, Int 1, Int 2));
     [%test_result: Term.t]
       (read_term "1 * 2 + 3")
-      ~expect:Term.(op (op (Int 1) Const.Mult (Int 2)) Const.Plus (Int 3));
+      ~expect:Term.(BinOp(BinOp.Plus,BinOp(BinOp.Mult, Int 1, Int 2), Int 3));
     [%test_result: Term.t]
       (read_term "1 + 2 * 3")
-      ~expect:Term.(op (Int 1) Const.Plus (op (Int 2) Const.Mult (Int 3)))
+      ~expect:Term.(BinOp(BinOp.Plus, Int 1, (BinOp(BinOp.Mult, Int 2, Int 3))))
 
   let%test_unit "comparizon" =
     [%test_result: Term.t]
       (read_term "1 < 2")
-      ~expect:Term.(op (Int 1) Const.LT (Int 2));
+      ~expect:Term.(BinOp(BinOp.LT, Int 1, Int 2));
     [%test_result: Term.t]
       (read_term "1 + 2 < 3 * 4")
-      ~expect:Term.(op (op (Int 1) Const.Plus (Int 2)) Const.LT (op (Int 3) Const.Mult (Int 4)))
-
+      ~expect:Term.(BinOp(BinOp.LT,
+                          BinOp(BinOp.Plus, Int 1, Int 2),
+                          BinOp(BinOp.Mult, Int 3, Int 4)))
   let%test_unit "logical operators" =
     [%test_result: Term.t]
       (read_term "not false")
-      ~expect:Term.(App(Const(Const.Not), Bool(false)));
+      ~expect:Term.(UniOp(UniOp.Not, Bool false));
     [%test_result: Term.t]
       (read_term "true && false")
-      ~expect:Term.(op (Bool true) Const.And (Bool false));
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.And, Bool true, Bool false));
     [%test_result: Term.t]
       (read_term "true || false")
-      ~expect:Term.(op (Bool true) Const.Or (Bool false));
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.Or, Bool true, Bool false));
     [%test_result: Term.t]
       (read_term "true || false && true")
-      ~expect:Term.(op (Bool true) Const.Or (op (Bool false) Const.And (Bool true)));
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.Or, Bool true,
+                                   (ShortCircuitOp(ShortCircuitOp.And, Bool false, Bool true))));
     [%test_result: Term.t]
       (read_term "1 < 2 && false")
-      ~expect:Term.(op (op (Int 1) Const.LT (Int 2)) Const.And (Bool false))
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.And, BinOp(BinOp.LT, Int 1, Int 2), Bool false))
 
   let%test_unit "variable" =
     [%test_result: Term.t]
@@ -98,7 +98,7 @@ let%test_module "read term" = (module struct
     [%test_result: Term.t]
       (read_term "fun(x:int@g1) -> x + 1")
       ~expect:Term.(Lam(x, Typ.BaseInt, g1,
-                        (op (Var(x)) Const.Plus (Int 1))));
+                        BinOp(BinOp.Plus, Var x, Int 1)));
     [%test_result: Term.t]
       (read_term "fun(x:int@g1)(y:bool@g2) -> if y then x else 0")
       ~expect:Term.(Lam(x, Typ.BaseInt, g1, Lam(y, Typ.BaseBool, g2, If(Var(y),Var(x),Int(0)))));
@@ -107,14 +107,14 @@ let%test_module "read term" = (module struct
     | Lam(v, ty, _, tm) -> (
         [%test_eq: Var.t] v (x);
         [%test_eq: Typ.t] ty Typ.BaseInt;
-        [%test_eq: Term.t] tm (op (Var(x)) Const.Plus (Int 1));
+        [%test_eq: Term.t] tm (BinOp(BinOp.Plus, Var(x), Int 1));
       )
     | _ -> failwith "boom"
 
     let%test_unit "app" =
     [%test_result: Term.t]
       (read_term "1 + f x")
-      ~expect:Term.(op (Int 1) Const.Plus (App(Var(f),Var(x))));
+      ~expect:Term.(BinOp(BinOp.Plus, Int 1, App(Var(f), Var(x))));
     [%test_result: Term.t]
       (read_term "if true then 1 else f 1")
       ~expect:Term.(If(Bool(true), Int(1), App(Var(f), Int(1))));
@@ -129,7 +129,7 @@ let%test_module "read term" = (module struct
     [%test_result: Term.t]
       (read_term "if true then 1 else 2 + 1")
       ~expect:Term.(If(Bool(true), Int(1),
-                      op (Int 2) Const.Plus (Int 1)))
+                       BinOp(BinOp.Plus, Int 2, Int 1)))
 
   let%test_unit "paren" =
     [%test_result: Term.t]
@@ -137,7 +137,7 @@ let%test_module "read term" = (module struct
       ~expect:Term.(Int(1));
     [%test_result: Term.t]
       (read_term "1 + (2 + 3)")
-      ~expect:Term.(App(App(Const(Const.Plus), Int(1)),(App(App(Const(Const.Plus), Int(2)),Int(3)));))
+      ~expect:Term.(BinOp(BinOp.Plus, Int 1, BinOp(BinOp.Plus, Int 2, Int 3)))
 
   let%test_unit "quote" =
     [%test_result: Term.t]
@@ -195,7 +195,7 @@ let%test_module "read term" = (module struct
   let%test_unit "let syntax as function definitions" =
     [%test_result: Term.t]
       (read_term "let f(x:int@g1):int@g2 = x + 1 in f 1")
-      ~expect:Term.(App(Lam(f, Typ.(Func(BaseInt, BaseInt)), g2, App(Var(f), Int(1))), Lam(x, BaseInt, g1, op (Var x) Const.Plus (Int 1))));
+      ~expect:Term.(App(Lam(f, Typ.(Func(BaseInt, BaseInt)), g2, App(Var(f), Int(1))), Lam(x, BaseInt, g1, BinOp(BinOp.Plus, Var x, Int 1))));
     [%test_result: Term.t]
       (read_term "let f[g1:>!]:<int@g1>@g2 = `{@g1 1} in f@@!")
       ~expect:Term.(App(Lam(f, Typ.(PolyCls(g1, Cls.init, Code(g1, BaseInt))), g2, AppCls(Var(f), Cls.init)), PolyCls(g1, Cls.init, Quo(g1, Int(1)))));

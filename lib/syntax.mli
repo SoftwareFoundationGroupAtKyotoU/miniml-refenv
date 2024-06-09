@@ -37,32 +37,38 @@ module Var: sig
   val alloc: unit -> t
 end
 
-module Const : sig
-
+module BinOp : sig
   type t =
-    (* Arithmetic operators *)
     | Plus
-    | Minus
     | Mult
-    | LT
-    | Equal
+    | Minus
     | Div
     | Mod
-    (* Boolean operators *)
+    | LT
+    | Equal
+  [@@deriving compare, equal, sexp]
+end
+
+module UniOp : sig
+  type t =
     | Not
+  [@@deriving compare, equal, sexp]
+end
+
+module ShortCircuitOp : sig
+  type t =
     | And
     | Or
   [@@deriving compare, equal, sexp]
-
-  val typeOf: t -> Typ.t
-
 end
 
 module Term: sig
   type t =
     | Int of int
     | Bool of bool
-    | Const of Const.t
+    | BinOp of BinOp.t * t * t
+    | UniOp of UniOp.t * t
+    | ShortCircuitOp of ShortCircuitOp.t * t * t
     | Var of Var.t
     | Lam of Var.t * Typ.t * Cls.t * t
     | App of t * t
