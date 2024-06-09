@@ -67,8 +67,52 @@ let%test_unit "big test cases" =
            fun(x:int@g)->
              ~{ spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y) }
         } in
-      ~0{spower 11} 2
-|} in
+      spower 11
+     |} in
   [%test_result: Typ.t option]
-    (Typechecker.typeinfer Context.empty subject)
-    ~expect:(Option.Some(BaseInt))
+    (subject |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.Some(Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
+  [%test_result: Evaluator.Value.t]
+    (subject |> Evaluator.eval 0 [] [] (fun x -> x))
+    ~expect:(Evaluator.Value.Code(
+        {|
+         `{@!
+            fun (x:int) ->
+              let x1:int = x * x in
+              let x2:int = x1 * x1 in
+              let x3:int = x2 * x2 in
+              x * (x1 * x3)
+         }
+      |} |> Cui.read_term
+      ));
+
+  let subject = Cui.read_term {|
+      let rec spower_[g:>!](n:int)(xq:<int@g>)(cont:[h:>g]<int@h>-><int@h>):<int@g> =
+        if n == 0 then
+          cont@@g `{@g 1 }
+        else if n == 1 then
+          cont@@g xq
+        else if n mod 2 == 1 then
+          spower_@@g (n - 1) xq
+            (fun[g1:>g](yq:<int@g1>) -> cont@@g1 `{@g1 ~xq * ~yq})
+        else
+          `{@g
+            let x2:int@g2 = ~xq * ~xq in
+            ~{
+              spower_@@g2 (n / 2) `{@g2 x2}
+                (fun[g3:>g2](yq:<int@g3>) -> cont@@g3 yq)
+            }
+          } in
+      let spower(n:int):<int->int@!> =
+        `{@!
+           fun(x:int@g)->
+             ~{ spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y) }
+        } in
+      ~0{spower 11} 2
+  |} in
+  [%test_result: Typ.t option]
+    (subject |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.Some(BaseInt));
+  [%test_result: Evaluator.Value.t]
+    (subject |> Evaluator.eval 0 [] [] (fun x -> x))
+    ~expect:(Evaluator.Value.Int(2048));

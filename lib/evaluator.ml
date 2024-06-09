@@ -312,7 +312,6 @@ let%test_unit "recursion" =
      |> eval 0 [] [] (fun x -> x))
     ~expect:(Value.Int 55)
 
-
 let%test_unit "code generation" =
   [%test_result: Value.t]
     ("`{@! 1 }"
@@ -353,4 +352,34 @@ let%test_unit "code generation" =
              x1 + x2
            }
          |} |> Cui.read_term
-      ));
+      ))
+
+let%test_unit "unquote with different levels" =
+  [%test_result: Value.t]
+    ("~0{`{@! 2 }}"
+     |> Cui.read_term
+     |> eval 0 [] [] (fun x -> x))
+    ~expect:(Int 2);
+  [%test_result: Value.t]
+    ({|
+        let x:<int@!> = `{@! 1 } in
+        `{@! `{@! ~2{ x } } }
+     |}
+     |> Cui.read_term
+     |> eval 0 [] [] (fun x -> x))
+    ~expect:(Value.Code (
+        "`{@! `{@! 1 } }" |> Cui.read_term
+      ))
+
+let%test_unit "polymorphic context" =
+  [%test_result: Value.t]
+    ({|
+        let f[g1:>!](x:<int@g1>) : <int@g1>
+          = `{@g1 1 + ~x } in
+        `{@! fun (y:int@g2) -> ~{ f@@g2 `{@g2 y } }}
+     |}
+     |> Cui.read_term
+     |> eval 0 [] [] (fun x -> x))
+    ~expect:(Value.Code (
+        "`{@! fun (y:int@g2) -> 1 + y }" |> Cui.read_term
+      ))
