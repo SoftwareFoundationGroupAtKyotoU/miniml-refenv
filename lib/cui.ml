@@ -81,7 +81,13 @@ let%test_module "read term" = (module struct
                                    (ShortCircuitOp(ShortCircuitOp.And, Bool false, Bool true))));
     [%test_result: Term.t]
       (read_term "1 < 2 && false")
-      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.And, BinOp(BinOp.LT, Int 1, Int 2), Bool false))
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.And, BinOp(BinOp.LT, Int 1, Int 2), Bool false));
+      [%test_result: Term.t]
+      (read_term "not false && true")
+      ~expect:Term.(ShortCircuitOp(ShortCircuitOp.And,
+                                   UniOp(UniOp.Not, Bool false),
+                                   Bool true))
+
 
   let%test_unit "variable" =
     [%test_result: Term.t]
@@ -214,6 +220,37 @@ let%test_module "read term" = (module struct
                         Fix(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
                                 Lam(x, BaseInt, g2, App(Var(f), Var(x)))))))
 
+  let%test_unit "unit" =
+    [%test_result: Term.t]
+      (read_term "()")
+      ~expect:Term.Nil
+
+  let%test_unit "referemce cells" =
+    [%test_result: Term.t]
+      (read_term "ref 10")
+      ~expect:Term.(Ref (Int 10));
+    [%test_result: Term.t]
+      (read_term "ref 10 + 1")
+      ~expect:Term.(BinOp(BinOp.Plus, Ref(Int 10), Int 1));
+    [%test_result: Term.t]
+      (read_term "ref f x")
+      ~expect:Term.(App(Ref(Var f), Var x));
+    [%test_result: Term.t]
+      (read_term "!x")
+      ~expect:Term.(Deref (Var x));
+    [%test_result: Term.t]
+      (read_term "!ref 10")
+      ~expect:Term.(Deref (Ref (Int 10)));
+    [%test_result: Term.t]
+      (read_term "!ref 10")
+      ~expect:Term.(Deref (Ref (Int 10)));
+    [%test_result: Term.t]
+      (read_term "x := 3")
+      ~expect:Term.(Assign(Var x, Int 3));
+    [%test_result: Term.t]
+      (read_term "!x := 3 + 3")
+      ~expect:Term.(Assign(Deref (Var x),
+                           BinOp(BinOp.Plus, Int 3, Int 3)));
 
 end)
 
@@ -247,6 +284,15 @@ let%test_module "read type" = (module struct
     ~expect:Typ.(PolyCls(g1, Cls.init, Func(BaseInt, BaseInt)));
   [%test_result: Typ.t]
     (read_typ "([g1:>!]int)->int")
-    ~expect:Typ.(Func(PolyCls(g1, Cls.init, BaseInt), BaseInt))
+    ~expect:Typ.(Func(PolyCls(g1, Cls.init, BaseInt), BaseInt));
+  [%test_result: Typ.t]
+    (read_typ "ref int")
+    ~expect:Typ.(Ref BaseInt);
+  [%test_result: Typ.t]
+    (read_typ "ref int -> int")
+    ~expect:Typ.(Func(Ref BaseInt, BaseInt));
+  [%test_result: Typ.t]
+    (read_typ "unit -> int")
+    ~expect:Typ.(Func(Unit, BaseInt));
 
 end)

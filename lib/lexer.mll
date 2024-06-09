@@ -14,6 +14,8 @@ let reservedWords = [
   ("int", Parser.BASEINT);
   ("bool", Parser.BASEBOOL);
   ("mod", Parser.MOD);
+  ("ref", Parser.REF);
+  ("unit", Parser.UNIT)
 ]
 }
 
@@ -41,6 +43,8 @@ rule main = parse
 | "@" { Parser.AT }
 | "=" { Parser.EQ }
 | "!" { Parser.BANG }
+
+| ":=" { Parser.ASSIGN }
 
 | "`" { Parser.BACKQUOTE }
 | ">" { Parser.GT }

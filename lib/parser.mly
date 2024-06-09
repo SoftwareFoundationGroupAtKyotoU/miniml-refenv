@@ -37,21 +37,23 @@
 %token BACKQUOTE TILDE
 %token FIX
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
+%token REF ASSIGN
 %token EOF
 
 %token GT CLSBOUND
-%token BASEINT BASEBOOL
+%token BASEINT BASEBOOL UNIT
 
 %right prec_let
 %right prec_if
 %left prec_fun
+%right ASSIGN
 %left OR
 %left AND
 %left EQUAL
 %left LT
 %left PLUS MINUS
 %left MULT DIV MOD
-%right NOT
+%nonassoc NOT BANG
 %nonassoc ATAT
 %nonassoc TRUE
 %nonassoc FALSE
@@ -62,6 +64,7 @@
 %nonassoc TILDE
 %nonassoc prec_polyctxtyp
 %right RARROW
+%nonassoc REF
 
 %start <Term.t> toplevel
 %start <Typ.t> toplevel_typ
@@ -84,6 +87,7 @@ referringcls:
 
 simple_expr: (* Expressions that can be used as an argument as-is *)
   | LPAREN expr RPAREN { $2 }
+  | LPAREN RPAREN { Term.Nil }
   | INTLIT { Term.Int($1) }
   | TRUE { Term.Bool(true) }
   | FALSE { Term.Bool(false) }
@@ -166,6 +170,13 @@ expr:
       Term.(App(Lam($3, ftyp, $8, $12),
             Fix(Lam($3, ftyp, $8, f))))
     }
+(* ref *)
+  | REF expr
+    { Term.Ref $2 }
+  | BANG expr
+    { Term.Deref $2 }
+  | expr ASSIGN expr
+    { Term.Assign($1, $3) }
 
 arg:
   | LPAREN bindingvar COLON typ AT referringcls RPAREN
@@ -190,3 +201,5 @@ typ:
   | LT typ AT referringcls GT { Typ.Code($4, $2) }
   | LBRACKET bindingcls CLSBOUND referringcls RBRACKET typ %prec prec_polyctxtyp
     { Typ.(PolyCls($2,$4,$6)) }
+  | REF typ { Typ.Ref($2) }
+  | UNIT { Typ.Unit }
