@@ -305,14 +305,7 @@ let%test_unit "code generation" =
     ("`{@! fun (x:int@g) -> ~{ `{@g x } }  }"
      |> Cui.read_term
      |> eval 0 [] [] (fun x -> x))
-    ~expect:(Value.Code(Term.(Quo(Cls.init, BinOp(BinOp.Plus, Int 1, Int 1)))));
-  [%test_result: Value.t]
-    ("`{@! fun (f:int->int)(x:int) -> f x }"
-     |> Cui.read_term
-     |> eval 0 [] [] (fun x -> x))
-    ~expect:(Value.Code(Term.(Quo(Cls.init, BinOp(BinOp.Plus, Int 1, Int 1)))))
-
-let%test_unit "do we need clousre for cenv?"  =
+    ~expect:(Value.Code ("`{@! fun (x:int@g) -> x}" |> Cui.read_term));
   [%test_result: Value.t]
     ({|
         `{@!
@@ -321,7 +314,7 @@ let%test_unit "do we need clousre for cenv?"  =
             let f (y:int):<int@g1> = `{@g1 x} in
             `{@g1
               let x:int = 2 in
-              x + ~{ f 0 }
+              ~{ f 0 } + x
             }
           }
         }

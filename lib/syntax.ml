@@ -285,6 +285,56 @@ module Term = struct
           thenn |> rename_cls from dest,
           elsee |> rename_cls from dest)
 
+  let rec equal (a : t)(b : t): bool =
+    match (a, b) with
+    | (Int ai, Int bi) -> Int.equal ai bi
+    | (Bool ab, Bool bb) -> Bool.equal ab bb
+    | (BinOp(aop, a1, a2), BinOp(bop, b1, b2)) ->
+      BinOp.equal aop bop
+      && equal a1 b1
+      && equal a2 b2
+    | (UniOp(aop, a1), UniOp(bop, b1)) ->
+      UniOp.equal aop bop
+      && equal a1 b1
+    | (ShortCircuitOp(aop, a1, a2), ShortCircuitOp(bop, b1, b2)) ->
+      ShortCircuitOp.equal aop bop
+      && equal a1 b1
+      && equal a2 b2
+    | (Var av, Var bv) ->
+      Var.equal av bv
+    | (Lam (av, aty, acls, abody), Lam(bv, bty, bcls, bbody)) ->
+      let v' = Var.alloc () in
+      let cls' = Cls.alloc () in
+      let abody' = abody |> rename_var av v' |> rename_cls acls cls' in
+      let bbody' = bbody |> rename_var bv v' |> rename_cls bcls cls' in
+      Typ.equal aty bty && equal abody' bbody'
+    | (App (af, aa), App(bf, ba)) ->
+      equal af bf && equal aa ba
+    | (Quo (acls, abody), Quo (bcls, bbody)) ->
+      let cls' = Cls.alloc () in
+      let abody' = abody |> rename_cls acls cls' in
+      let bbody' = bbody |> rename_cls bcls cls' in
+      equal abody' bbody'
+    | (Unq (adiff, atm), Unq (bdiff, btm)) ->
+      Int.equal adiff bdiff && equal atm btm
+    | (PolyCls (acls, abase, abody), PolyCls (bcls, bbase, bbody)) ->
+      let cls' = Cls.alloc () in
+      let abody' = abody |> rename_cls acls cls' in
+      let bbody' = bbody |> rename_cls bcls cls' in
+      Cls.equal abase bbase && equal abody' bbody'
+    | (AppCls (atm, abase), AppCls (btm, bbase)) ->
+      equal atm btm && Cls.equal abase bbase
+    | (Fix af, Fix bf) ->
+      equal af bf
+    | (If (acond, athen, aelse), If (bcond, bthen, belse)) ->
+      equal acond bcond && equal athen bthen && equal aelse belse
+    | _ -> false
+
+  let compare (a : t)(b : t): int =
+    if equal a b
+    then 0
+    else 1
+
 end
 
 module Context = struct

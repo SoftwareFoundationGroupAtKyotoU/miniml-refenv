@@ -78,8 +78,10 @@ module Term: sig
     | AppCls of t * Cls.t
     | Fix of t
     | If of t * t * t
-  [@@deriving compare, equal, sexp]
+  [@@deriving sexp]
 
+  val equal: t -> t -> bool
+  val compare: t -> t -> int
   val rename_var: Var.t -> Var.t -> t -> t
   val rename_cls: Cls.t -> Cls.t -> t -> t
 end
