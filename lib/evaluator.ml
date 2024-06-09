@@ -25,7 +25,7 @@ module CodeEnv = struct
 
   let rec rename_var(v:Var.t)(env: t): Var.t =
     match env with
-    | [] -> failwith "failed to look up"
+    | [] -> v
     | Var(from, dest) :: rest ->
         if Var.equal v from
         then dest
@@ -102,6 +102,7 @@ let performUniOp(op:UniOp.t)(a:Value.t): Value.t =
   | _ -> failwith "type mismatch: uniop not"
 
 let rec eval(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)(k:Value.t -> Value.t)(tm:Term.t): Value.t =
+  (* tm |> Term.sexp_of_t |> Sexplib0.Sexp.to_string |> Stdio.prerr_endline; *)
   (match (lv, tm) with
    | (0, Term.Int i) -> Value.Int i |> k
    | (0, Term.Bool b) -> Value.Bool b |> k

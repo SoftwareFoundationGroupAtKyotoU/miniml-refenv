@@ -83,7 +83,7 @@ let%test_unit "big test cases" =
               let x3:int = x2 * x2 in
               x * (x1 * x3)
          }
-      |} |> Cui.read_term
+         |} |> Cui.read_term
       ));
 
   let subject = Cui.read_term {|
@@ -108,11 +108,13 @@ let%test_unit "big test cases" =
            fun(x:int@g)->
              ~{ spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y) }
         } in
-      ~0{spower 11} 2
+      let power(n:int)(x:int@g):int =
+        ~0{spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y)} in
+      (~0{spower 11} 2) + (power 11 2)
   |} in
   [%test_result: Typ.t option]
     (subject |> Typechecker.typeinfer Context.empty)
     ~expect:(Option.Some(BaseInt));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval 0 [] [] (fun x -> x))
-    ~expect:(Evaluator.Value.Int(2048));
+    ~expect:(Evaluator.Value.Int(4096));
