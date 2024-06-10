@@ -44,6 +44,50 @@ let%test_unit "hoge" =
      |> Typechecker.typeinfer Context.empty)
     ~expect:(Option.Some("<int@!>" |> Cui.read_typ))
 
+let%test_unit "avoidance of scope extrusion" =
+  [%test_result: Typ.t option]
+    ({|
+      let r: <int@!> = ref `{@! 0 } in
+      let x: <int->int@!> = `{@! fun (x:int@g1) ->
+          ~{
+            let () = r := `{@! x } in
+            `{@g1 x }
+          }
+        } in
+      !r
+     |}
+     |> Cui.read_term
+     |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.None);
+  [%test_result: Typ.t option]
+    ({|
+      let r: <int@!> = ref `{@! 0 } in
+      let x: <int->int@!> = `{@! fun (x:int@g1) ->
+          ~{
+            let () = r := `{@g1 x } in
+            `{@g1 x }
+          }
+        } in
+      !r
+     |}
+     |> Cui.read_term
+     |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.None);
+  [%test_result: Typ.t option]
+    ({|
+      let r: <int@!> = ref `{@g1 0 } in
+      let x: <int->int@!> = `{@! fun (x:int@g1) ->
+          ~{
+            let () = r := `{@g1 x } in
+            `{@g1 x }
+          }
+        } in
+      !r
+     |}
+     |> Cui.read_term
+     |> Typechecker.typeinfer Context.empty)
+    ~expect:(Option.None)
+
 let%test_unit "big test cases" =
   let subject = Cui.read_term {|
       let rec spower_[g:>!](n:int)(xq:<int@g>)(cont:[h:>g]<int@h>-><int@h>):<int@g> =
@@ -156,7 +200,6 @@ let%test_unit "big test cases" =
                assert_locus@@h1 (fun (locus:ref (<int->int@h1> -> <int->int@h1>)) ->
                  `{@h1 fun (z:int@h3) -> (fib 100) + ~{guarded_div@@h1@@h3 locus `{@h3 z } `{@h1 y }}})}
            }
-
      |} in
   [%test_result: Typ.t option]
     (subject |> Typechecker.typeinfer Context.empty)
