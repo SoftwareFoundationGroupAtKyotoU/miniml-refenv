@@ -138,9 +138,24 @@ let performUniOp(op:UniOp.t)(a:Value.t): Value.t =
   | (UniOp.Not, Bool(b)) -> Bool(not b)
   | _ -> failwith "type mismatch: uniop not"
 
-let rec eval(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
+let describe
+    (lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
+    (store: Store.t)(tm:Term.t): unit =
+  Printf.sprintf "lv is %d\n" lv |> Stdio.prerr_endline;
+  Stdio.prerr_endline "evaluating term:";
+  Stdio.eprint_s (Term.sexp_of_t tm);
+  Stdio.prerr_endline "renv is:";
+  Stdio.eprint_s (RuntimeEnv.sexp_of_t Value.sexp_of_t renv);
+  Stdio.prerr_endline "cenv is:";
+  Stdio.eprint_s (CodeEnv.sexp_of_t cenv);
+  Stdio.prerr_endline "store is:";
+  Stdio.eprint_s (Store.sexp_of_t store)
+
+let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
     (store: Store.t)(k:(Value.t * Store.t) -> (Value.t * Store.t))(tm:Term.t): Value.t * Store.t =
-  (* tm |> Term.sexp_of_t |> Sexplib0.Sexp.to_string |> Stdio.prerr_endline; *)
+  if debug
+  then describe lv renv cenv store tm
+  else ();
   (match (lv, tm) with
    | (0, Term.Int i) -> (Value.Int i, store) |> k
    | (0, Term.Bool b) -> (Value.Bool b, store) |> k
@@ -332,9 +347,12 @@ let rec eval(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
                | _ -> failwith "hoge l assign"))
   )
 
-let eval_v tm =
-  let (v, _) = tm |> eval 0 [] [] [] (fun x -> x) in
+let eval_v ?(debug=false) tm =
+  let (v, _) = tm |> eval ~debug:debug 0 [] [] [] (fun x -> x) in
   v
+
+let eval_vs ?(debug=false) tm =
+  tm |> eval ~debug:debug 0 [] [] [] (fun x -> x)
 
 let%test_unit "hoge" =
   [%test_result: Value.t]
@@ -462,3 +480,30 @@ let%test_unit "polymorphic context" =
     ~expect:(Value.Code (
         "`{@! fun (y:int@g2) -> 1 + y }" |> Cui.read_term
       ))
+
+let%test_unit "ref" =
+  [%test_result: Value.t]
+    ({|
+        let r: ref int = ref 1 in
+        let () = r := 2 in
+        !r
+     |}
+     |> Cui.read_term
+     |> eval_v)
+    ~expect:(Value.Int 2);
+  [%test_result: Value.t]
+    ({|
+        let r: ref int = ref 0 in
+        let rec loop (n:int): unit =
+          if n < 1 then
+            ()
+          else
+            let c: int = !r in
+            let () = r := (c + n) in
+            loop (n - 1) in
+        let () = loop 10 in
+        !r
+     |}
+     |> Cui.read_term
+     |> eval_v)
+    ~expect:(Value.Int 55)

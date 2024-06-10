@@ -170,6 +170,9 @@ expr:
       Term.(App(Lam($3, ftyp, $8, $12),
             Fix(Lam($3, ftyp, $8, f))))
     }
+(* Let expression for unit *)
+  | LET LPAREN RPAREN EQ expr IN expr %prec prec_let
+    { Term.(App(Lam(Var.alloc(), Typ.Unit, Cls.alloc(), $7), $5)) }
 (* ref *)
   | REF expr
     { Term.Ref $2 }

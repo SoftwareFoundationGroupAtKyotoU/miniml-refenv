@@ -51,7 +51,9 @@ module Store : sig
   val update : Loc.t -> Value.t -> t -> t
 end
 
-val eval: int ->
+val eval:
+  ?debug:bool ->
+  int ->
   Value.t RuntimeEnv.t ->
   CodeEnv.t ->
   Store.t ->
@@ -59,4 +61,5 @@ val eval: int ->
   Term.t ->
   Value.t * Store.t
 
-val eval_v: Term.t -> Value.t
+val eval_v: ?debug:bool -> Term.t -> Value.t
+val eval_vs: ?debug:bool -> Term.t -> Value.t * Store.t
