@@ -1,4 +1,4 @@
 (executable
  (name main)
  (public_name miniml_refenv.main)
- (libraries miniml_refenv.lib))
+ (libraries miniml_refenv.lib base stdio))

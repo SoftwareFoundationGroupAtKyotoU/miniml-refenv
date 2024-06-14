@@ -1,5 +1,8 @@
 open Syntax
 
+let read_term_from_channel (input: in_channel): Term.t =
+  Parser.toplevel Lexer.main (Lexing.from_channel input)
+
 let read_term (input: string): Term.t =
   Parser.toplevel Lexer.main (Lexing.from_string input)
 
