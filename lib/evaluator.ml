@@ -81,7 +81,6 @@ module Value = struct
     | Int of int
     | Bool of bool
     | Clos of t RuntimeEnv.t * CodeEnv.t * Term.t
-    | Fix of t RuntimeEnv.t * CodeEnv.t * Term.t
     | Code of Term.t
     | Fut of Term.t
     | Loc of Loc.t
@@ -188,8 +187,6 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
          match funcv with
          | Clos(renv', cenv', Lam(var, _, _, body)) ->
            body |> eval 0 ((var, argv) :: renv') cenv' store k
-         | Fix(renv', cenv', Lam(self, _, _, Lam(var, _, _, body))) ->
-           body |> eval 0 ((var, argv) :: (self, funcv) :: renv') cenv' store k
          | _ -> failwith "hoge 0 app"))
    | (0, Term.Quo (cls, body)) ->
      body |> eval 1 renv cenv store (fun (futv, store) ->
@@ -209,13 +206,16 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
      tm |> eval 0 renv cenv store (fun (v, store) -> match v with
          | Clos(renv', cenv', PolyCls(cls2, _, body)) ->
            body |> eval 0 renv' (CodeEnv.Cls(cls2, cenv |> CodeEnv.rename_cls cls1)::cenv') store k
-         | Fix(renv', cenv', Lam(self, _, _, PolyCls(cls2, _, body))) ->
-           body |> eval 0 ((self, v) :: renv') (CodeEnv.Cls(cls2, cenv |> CodeEnv.rename_cls cls1)::cenv') store k
          | _ -> failwith "hogege 0 appcls")
    | (0, Term.Fix f) ->
      f |> eval 0 renv cenv store (fun (fv, store) ->
          match fv with
-         | Clos(renv', cenv', lam) -> (Value.Fix (renv', cenv', lam), store) |> k
+         | Clos(renv', cenv', (Lam(self, _, _, Lam(v, cls, typ, body)) as fixed)) ->
+           let eta = Value.Clos(renv', cenv', Lam(v, cls, typ, App(Fix fixed, Var(v)))) in
+           (Clos(((self, eta) :: renv'), cenv', Lam(v, cls, typ, body)), store) |> k
+         | Clos(renv', cenv', (Lam(self, _, _, PolyCls(cls, base, body)) as fixed)) ->
+           let eta = Value.Clos(renv', cenv', PolyCls(cls, base, AppCls(Fix fixed, cls))) in
+           (Clos(((self, eta) :: renv'), cenv', PolyCls(cls, base, body)), store) |> k
          | _ -> failwith "hogehoge 0 fix"
        )
    | (0, Term.If (cond, thenn, elsee)) ->

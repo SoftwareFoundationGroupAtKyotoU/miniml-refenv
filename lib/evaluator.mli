@@ -34,7 +34,6 @@ module Value : sig
     | Int of int
     | Bool of bool
     | Clos of t RuntimeEnv.t * CodeEnv.t * Term.t
-    | Fix of t RuntimeEnv.t * CodeEnv.t * Term.t
     | Code of Term.t
     | Fut of Term.t
     | Loc of Loc.t
