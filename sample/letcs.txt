@@ -1,0 +1,6 @@
+let cs square(x:int):int@g = x * x in
+if (square 3) < 4 then
+  `{@g square 10 }
+else
+  `{@g square 3 }
+

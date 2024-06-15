@@ -220,6 +220,7 @@ module Term = struct
     | Ref of t
     | Deref of t
     | Assign of t * t
+    | Letcs of Var.t * Typ.t * Cls.t * t * t
   [@@deriving compare, equal, sexp]
 
   let rec rename_var(from:Var.t)(dest:Var.t)(tm:t): t =
@@ -263,6 +264,10 @@ module Term = struct
     | Deref tm -> Deref (tm |> rename_var from dest)
     | Assign (loc, newv) ->
       Assign (loc |> rename_var from dest, newv |> rename_var from dest)
+    | Letcs (v, cls, ty, e1, e2) ->
+      if Var.equal from v
+      then tm
+      else Letcs (v, cls, ty, e1, e2 |> rename_var from dest)
 
   let rec rename_cls(from:Cls.t)(dest:Cls.t)(tm:t): t =
     let apply = Cls.rename_cls from dest in
@@ -281,13 +286,11 @@ module Term = struct
       let tm2' = tm2 |> rename_cls from dest in
       ShortCircuitOp (op, tm1', tm2')
     | Var _ -> tm
-    | Lam (v, typ, cls, body) ->
+    | Lam (v, ty, cls, body) ->
+      let ty2 = ty |> Typ.rename_cls from dest in
       if Cls.equal from cls
-      then tm
-      else Lam(v,
-               typ |> Typ.rename_cls from dest,
-               cls,
-               body |> rename_cls from dest)
+      then Lam(v, ty2, cls, body)
+      else Lam(v, ty2, cls, body |> rename_cls from dest)
     | App (func, arg) ->
       App (func |> rename_cls from dest,
            arg |> rename_cls from dest)
@@ -311,6 +314,12 @@ module Term = struct
     | Deref tm -> Deref (tm |> rename_cls from dest)
     | Assign (loc, newv) ->
       Assign (loc |> rename_cls from dest, newv |> rename_cls from dest)
+    | Letcs (v, ty, cls, e1, e2) ->
+      let ty2 = ty |> Typ.rename_cls from dest in
+      let e1' = e1 |> rename_cls from dest in
+      if Cls.equal from cls
+      then Letcs (v, ty2, cls, e1', e2)
+      else Letcs (v, ty2, cls, e1', e2 |> rename_cls from dest)
 
   let rec equal (a : t)(b : t): bool =
     match (a, b) with
@@ -360,6 +369,14 @@ module Term = struct
     | Deref a, Deref b -> equal a b
     | Assign (aloc, anew), Assign (bloc, bnew) ->
       equal aloc bloc && equal anew bnew
+    | Letcs (va, tya, clsa, e1a, e2a), Letcs (vb, tyb, clsb, e1b, e2b) ->
+      let v' = Var.alloc () in
+      let cls' = Cls.alloc () in
+      let e2a' = e2a |> rename_var va v' |> rename_cls clsa cls' in
+      let e2b' = e2b |> rename_var vb v' |> rename_cls clsb cls' in
+      Typ.equal tya tyb
+      && equal e1a e1b
+      && equal e2a' e2b'
     | _ -> false
 
   let compare (a : t)(b : t): int =

@@ -1,6 +1,7 @@
 open Core
 open Syntax
 
+(* Memoize well_formed_context to improve performance *)
 let wfc_memo = Hashtbl.create (module Context)
 
 let rec well_formed_context (ctx: Context.t): bool =
@@ -362,6 +363,14 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
           else None
         | _ -> None
        )
+     | Term.Letcs (v, ty, cls, e1, e2) ->
+       typeinfer ctx e1 >>= fun e1inf ->
+       let ctx2 = Context.Var(v, ty, cls) :: ctx in
+       typeinfer ctx2 e2 >>= fun e2inf ->
+       if Typ.equal e1inf ty then
+         return (e2inf |> Typ.rename_cls cls (Context.current ctx))
+       else
+         None
     )
 
 let%test_module "typeinfer" = (module struct
@@ -582,6 +591,25 @@ let%test_module "typeinfer" = (module struct
            Context.(from [Var (v1, Typ.(Ref BaseInt), g2)])
            Term.(Assign (Var v1, Int 10)))
         ~expect:(Option.some(Typ.Unit))
+
+    let%test_unit "cross stage definitions" =
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Letcs(v1, Typ.BaseInt, g2, Int(10), Quo(g2, Var(v1)))))
+        ~expect:(Option.some(Typ.(Code(g1, BaseInt))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Letcs(v1, Typ.BaseInt, g2, Int(10), Quo(g1, Int(0)))))
+        ~expect:(Option.some(Typ.(Code(g1, BaseInt))));
+      [%test_result: Typ.t option]
+        (typeinfer
+           Context.empty
+           Term.(Letcs(v1, Typ.BaseInt, g2, Int(10),
+                      Letcs(v2, Typ.BaseInt, g3, Int(11), Quo(g3, Var(v2))))))
+        ~expect:(Option.some(Typ.(Code(g1, BaseInt))))
+
 
     let%test_unit "shadowing" =
       [%test_result: Typ.t option]

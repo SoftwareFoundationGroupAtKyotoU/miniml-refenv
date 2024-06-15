@@ -223,6 +223,22 @@ let%test_module "read term" = (module struct
                         Fix(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
                                 Lam(x, BaseInt, g2, App(Var(f), Var(x)))))))
 
+  let%test_unit "let cs syntax" =
+    [%test_result: Term.t]
+      (read_term {|
+        let cs x : int @ g1 = 3 in
+        x
+      |})
+      ~expect:Term.(Letcs(x, Typ.BaseInt, g1, Int(3), Var(x)));
+    [%test_result: Term.t]
+      (read_term {|
+        let cs f(x:int@g2) : int @ g1 = x * x in
+        f(3)
+      |})
+      ~expect:Term.(Letcs(f, Typ.(Func(BaseInt, BaseInt)), g1,
+                          Lam(x, Typ.BaseInt, g2, BinOp(BinOp.Mult, Var(x), Var(x))),
+                          App(Var f, Int 3)))
+
   let%test_unit "unit" =
     [%test_result: Term.t]
       (read_term "()")

@@ -9,6 +9,7 @@ let reservedWords = [
   ("fix", Parser.FIX);
   ("let", Parser.LET);
   ("rec", Parser.REC);
+  ("cs", Parser.CS);
   ("in", Parser.IN);
   ("not", Parser.NOT);
   ("int", Parser.BASEINT);

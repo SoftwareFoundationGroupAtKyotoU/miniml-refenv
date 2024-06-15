@@ -2,7 +2,7 @@ open Base
 open Syntax
 
 module RuntimeEnv : sig
-  type 'a t = (Var.t * 'a) list
+  type 'a t = (Var.t * Cls.t * 'a) list
   [@@deriving compare, equal, sexp]
 
   val lookup_var: Var.t -> 'a t -> 'a

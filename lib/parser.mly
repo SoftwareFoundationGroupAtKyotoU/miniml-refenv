@@ -33,7 +33,7 @@
 %token IF THEN ELSE
 %token FUN COLON AT RARROW
 %token BANG
-%token LET REC EQ IN UNDERSCORE
+%token LET REC CS EQ IN UNDERSCORE
 %token BACKQUOTE TILDE
 %token FIX
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
@@ -170,6 +170,36 @@ expr:
       Term.(App(Lam($3, ftyp, $8, $12),
             Fix(Lam($3, ftyp, $8, f))))
     }
+(* Cross-stage definition *)
+  | LET CS bindingvar COLON typ EQ expr IN expr %prec prec_let
+    { Term.(Letcs($3, $5, Cls.alloc(), $7, $9)) }
+  | LET CS bindingvar COLON typ AT referringcls EQ expr IN expr %prec prec_let
+    { Term.(Letcs($3, $5, $7, $9, $11)) }
+  | LET CS bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
+    {
+      let f = expand_arglist $4 $8 in
+      let ftyp = expand_functype $4 $6 in
+      Term.(Letcs($3, ftyp, Cls.alloc(), f, $10))
+    }
+  | LET CS bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
+    {
+      let f = expand_arglist $4 $10 in
+      let ftyp = expand_functype $4 $6 in
+      Term.(Letcs($3, ftyp, $8, f, $12))
+    }
+  | LET REC CS bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
+    {
+      let ftyp = expand_functype $5 $7 in
+      let f = Term.(Fix(Lam($4, ftyp, Cls.alloc(), expand_arglist $5 $9))) in
+      Term.(Letcs($4, ftyp, Cls.alloc(), f, $11))
+    }
+  | LET REC CS bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
+    {
+      let ftyp = expand_functype $5 $7 in
+      let f = Term.(Fix(Lam($4, ftyp, $9, expand_arglist $5 $11))) in
+      Term.(Letcs($4, ftyp, $9, f, $13))
+    }
+
 (* Let expression for unit *)
   | LET LPAREN RPAREN EQ expr IN expr %prec prec_let
     { Term.(App(Lam(Var.alloc(), Typ.Unit, Cls.alloc(), $7), $5)) }

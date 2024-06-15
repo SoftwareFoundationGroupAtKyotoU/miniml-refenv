@@ -2,16 +2,21 @@ open Base
 open Syntax
 
 module RuntimeEnv = struct
-  type 'a t = (Var.t * 'a) list
+  type 'a t = (Var.t * Cls.t * 'a) list
   [@@deriving compare, equal, sexp]
 
   let rec lookup_var(v:Var.t)(env:'a t): 'a =
     match env with
     | [] -> failwith "failed to lookup var"
-    | (v1, value) :: rest ->
+    | (v1, _, value) :: rest ->
       if Var.equal v v1
       then value
       else rest |> lookup_var v
+
+  let current(env: 'a t): Cls.t =
+    match env with
+    | [] -> Cls.init
+    | (_, g, _) :: _ -> g
 end
 
 module CodeEnv = struct
@@ -185,8 +190,8 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
      func |> eval 0 renv cenv store (fun (funcv, store) ->
          arg |> eval 0 renv cenv store (fun (argv, store) ->
          match funcv with
-         | Clos(renv', cenv', Lam(var, _, _, body)) ->
-           body |> eval 0 ((var, argv) :: renv') cenv' store k
+         | Clos(renv', cenv', Lam(var, _, cls, body)) ->
+           body |> eval 0 ((var, cls, argv) :: renv') cenv' store k
          | _ -> failwith "hoge 0 app"))
    | (0, Term.Quo (cls, body)) ->
      body |> eval 1 renv cenv store (fun (futv, store) ->
@@ -210,12 +215,12 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
    | (0, Term.Fix f) ->
      f |> eval 0 renv cenv store (fun (fv, store) ->
          match fv with
-         | Clos(renv', cenv', (Lam(self, _, _, Lam(v, cls, typ, body)) as fixed)) ->
+         | Clos(renv', cenv', (Lam(self, _, clss, Lam(v, cls, typ, body)) as fixed)) ->
            let eta = Value.Clos(renv', cenv', Lam(v, cls, typ, App(Fix fixed, Var(v)))) in
-           (Clos(((self, eta) :: renv'), cenv', Lam(v, cls, typ, body)), store) |> k
-         | Clos(renv', cenv', (Lam(self, _, _, PolyCls(cls, base, body)) as fixed)) ->
+           (Clos(((self, clss, eta) :: renv'), cenv', Lam(v, cls, typ, body)), store) |> k
+         | Clos(renv', cenv', (Lam(self, _, clss, PolyCls(cls, base, body)) as fixed)) ->
            let eta = Value.Clos(renv', cenv', PolyCls(cls, base, AppCls(Fix fixed, cls))) in
-           (Clos(((self, eta) :: renv'), cenv', PolyCls(cls, base, body)), store) |> k
+           (Clos(((self, clss, eta) :: renv'), cenv', PolyCls(cls, base, body)), store) |> k
          | _ -> failwith "hogehoge 0 fix"
        )
    | (0, Term.If (cond, thenn, elsee)) ->
@@ -246,6 +251,16 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
                let newstore = store |> Store.update loc newv in
                (Value.Nil, newstore) |> k
              | _ -> failwith "hogee 0 deref"))
+   | (0, Term.Letcs(v, ty, cls, e1, e2)) ->
+     e1 |> eval 0 renv cenv store (fun (e1v, store) ->
+         let renv' = (v, cls, e1v) :: renv in
+         e2 |> eval 0 renv' cenv store (fun (e2v, store) ->
+             ((match e2v with
+              | Value.Code (Term.Quo (cls2, body)) when (Cls.equal cls cls2) ->
+                Value.Code (Term.Quo (RuntimeEnv.current renv, Letcs(v, ty, cls, e1, body)))
+              | _ -> e2v)
+              , store) |> k
+       ))
    | (_, Term.Int _) -> (Value.Fut tm, store) |> k
    | (_, Term.Bool _) -> (Value.Fut tm, store) |> k
    | (l, Term.BinOp(op, a, b)) ->
@@ -346,7 +361,19 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
                match (locv, newvv) with
                | (Fut locb, Fut newb) -> (Fut(Term.Assign(locb, newb)), store) |> k
                | _ -> failwith "hoge l assign"))
-  )
+     | (l, Term.Letcs(v, ty, cls, e1, e2)) ->
+       e1 |> eval l renv cenv store (fun (e1v, store) ->
+           let v' = Var.alloc () in
+           let ty' = cenv |> CodeEnv.rename_cls_in_typ ty in
+           let cls' = Cls.alloc () in
+           let cenv' = CodeEnv.(Cls(cls, cls') :: Var(v, v') :: cenv) in
+           e2 |> eval l renv cenv' store (fun (e2v, store) ->
+               ((match (e1v, e2v) with
+                   | Value.(Fut e1vbody, Fut e2vbody) ->
+                     Value.Fut(Letcs(v', ty', cls', e1vbody, e2vbody))
+                   | _ -> e2v)
+               , store) |> k
+             )))
 
 let eval_v ?(debug=false) tm =
   let (v, _) = tm |> eval ~debug:debug 0 [] [] [] (fun x -> x) in
