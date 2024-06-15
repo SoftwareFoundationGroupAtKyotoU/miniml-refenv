@@ -1,8 +1,8 @@
-open Base
+open Core
 
 module Cls: sig
   type t
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, sexp, hash]
 
   val init: t
   val from_string: string -> t
@@ -23,7 +23,9 @@ module Typ: sig
     | PolyCls of Cls.t * Cls.t * t
     | Unit
     | Ref of t
-  [@@deriving sexp]
+  [@@deriving sexp, hash]
+
+  include Hashable with type t := t
 
   val equal: t -> t -> bool
   val compare: t -> t -> int
@@ -33,7 +35,7 @@ end
 
 module Var: sig
   type t
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, sexp, hash]
 
   val from_string: string -> t
   val alloc: unit -> t
@@ -99,10 +101,12 @@ module Context: sig
     | Lock of Cls.t
     | Unlock of int
     | Cls of Cls.t * Cls.t
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, sexp, hash]
 
   type t = elm list
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, sexp, hash]
+
+  include Hashable with type t := t
 
   val empty: t
   val from: elm list -> t

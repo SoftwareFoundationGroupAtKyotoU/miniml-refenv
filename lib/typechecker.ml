@@ -1,28 +1,34 @@
-open Base
+open Core
 open Syntax
 
+let wfc_memo = Hashtbl.create (module Context)
+
 let rec well_formed_context (ctx: Context.t): bool =
-  (match ctx with
-   | [Context.Init _] -> true
-   | Context.Var (var, ty, cls) :: ctx ->
-     well_formed_context ctx &&
-     not (var |> List.mem (Context.domain_var ctx) ~equal:Var.equal) &&
-     not (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) &&
-     well_formed_type ctx ty
-   | Context.Lock base :: ctx ->
-     let dom_cls = Context.domain_cls ctx in
-     well_formed_context ctx &&
-     (base |> List.mem dom_cls ~equal:Cls.equal)
-   | Context.Unlock (diff) :: ctx ->
-     well_formed_context ctx &&
-     diff >= 0 &&
-     diff <= (Context.depth ctx)
-   | Context.Cls (cls, base) :: ctx ->
-     let dom_cls = Context.domain_cls ctx in
-     well_formed_context ctx &&
-     (base |> List.mem dom_cls ~equal:Cls.equal) &&
-     not (cls |> List.mem dom_cls ~equal:Cls.equal)
-   | _ -> false)
+  Hashtbl.find wfc_memo ctx |> Option.value_or_thunk ~default:(fun () ->
+      let ans =
+        (match ctx with
+         | [Context.Init _] -> true
+         | Context.Var (var, ty, cls) :: ctx ->
+           well_formed_context ctx &&
+           not (var |> List.mem (Context.domain_var ctx) ~equal:Var.equal) &&
+           not (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) &&
+           well_formed_type ctx ty
+         | Context.Lock base :: ctx ->
+           let dom_cls = Context.domain_cls ctx in
+           well_formed_context ctx &&
+           (base |> List.mem dom_cls ~equal:Cls.equal)
+         | Context.Unlock (diff) :: ctx ->
+           well_formed_context ctx &&
+           diff >= 0 &&
+           diff <= (Context.depth ctx)
+         | Context.Cls (cls, base) :: ctx ->
+           let dom_cls = Context.domain_cls ctx in
+           well_formed_context ctx &&
+           (base |> List.mem dom_cls ~equal:Cls.equal) &&
+           not (cls |> List.mem dom_cls ~equal:Cls.equal)
+         | _ -> false) in
+      let _ = Hashtbl.add wfc_memo ~key:ctx ~data:ans in
+      ans)
 
 and well_formed_type (ctx: Context.t) (ty: Typ.t): bool =
   well_formed_context ctx &&
@@ -209,7 +215,7 @@ end)
 
 let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
   if not (well_formed_context ctx) then
-    Option.None
+    None
   else
     let open Option in
     (match tm with
@@ -226,12 +232,12 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
         | BinOp.Mod ->
           (match (inferred1, inferred2) with
            | (Typ.BaseInt, Typ.BaseInt) -> return Typ.BaseInt
-           | _ -> Option.None)
+           | _ -> None)
         | BinOp.LT
         | BinOp.Equal ->
           (match (inferred1, inferred2) with
            | (Typ.BaseInt, Typ.BaseInt) -> return Typ.BaseBool
-           | _ -> Option.None)
+           | _ -> None)
        )
      | Term.UniOp (op, tm1) ->
        tm1 |> typeinfer ctx >>= fun inferred ->
@@ -239,7 +245,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
         | UniOp.Not ->
           match inferred with
           | Typ.BaseBool -> return Typ.BaseBool
-          | _ -> Option.None
+          | _ -> None
        )
      | Term.ShortCircuitOp (op, tm1, tm2) ->
        tm1 |> typeinfer ctx >>= fun inferred1 ->
@@ -249,7 +255,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
         | ShortCircuitOp.Or ->
           (match (inferred1, inferred2) with
            | (Typ.BaseBool, Typ.BaseBool) -> return Typ.BaseBool
-           | _ -> Option.None)
+           | _ -> None)
        )
      | Term.Var v ->
        Context.lookup_var ctx v >>= fun (ty, cls) ->
@@ -264,7 +270,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
        let ctx2 = Context.Var(v', ty, cls') :: ctx in
        typeinfer ctx2 body' >>= fun inferred ->
        if cls' |> Set.mem (Typ.free_cls inferred) then
-         Option.None
+         None
        else
          return (Typ.Func(ty, inferred))
      | Term.App (func, arg) ->
@@ -321,13 +327,13 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
           if (Typ.equal targ1 targ2 && Typ.equal tret1 tret2) then
             return (Typ.Func(targ1, tret1))
           else
-            Option.None
+            None
         | Typ.(Func(PolyCls(cls1, base1, tret1), PolyCls(cls2, base2, tret2))) ->
           if (Typ.equal (PolyCls(cls1, base1, tret1)) (PolyCls(cls2, base2, tret2))) then
             return (Typ.PolyCls(cls1, base1, tret1))
           else
-            Option.None
-        | _ -> Option.None
+            None
+        | _ -> None
        )
      | Term.If(cond, thenn, elsee) ->
        typeinfer ctx cond >>= fun tycond ->
@@ -336,7 +342,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
        if Typ.equal tycond Typ.BaseBool && Typ.equal tythen tyelse then
          return tythen
        else
-         Option.None
+         None
      | Term.Nil -> return Typ.Unit
      | Term.Ref tm ->
        typeinfer ctx tm >>= fun inferred ->
@@ -345,7 +351,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
        typeinfer ctx tm >>= fun inferred ->
        (match inferred with
         | Ref ty -> return ty
-        | _ -> Option.None)
+        | _ -> None)
      | Term.Assign (loc, newv) ->
        typeinfer ctx loc >>= fun locinf ->
        typeinfer ctx newv >>= fun newinf ->
@@ -353,8 +359,8 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): Typ.t option =
         | Ref ty1, ty2 ->
           if Typ.equal ty1 ty2
           then return Typ.Unit
-          else Option.None
-        | _ -> Option.None
+          else None
+        | _ -> None
        )
     )
 
@@ -373,128 +379,128 @@ let%test_module "typeinfer" = (module struct
   let%test_unit "failure on ill-formed context" =
     [%test_result: Typ.t option]
       (typeinfer [] Term.(Lam(v1, BaseInt, g2, Var(v1))))
-      ~expect:Option.None
+      ~expect:None
 
   let%test_unit "literals" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Int 1))
-      ~expect:(Option.Some(Typ.BaseInt));
+      ~expect:(Option.some(Typ.BaseInt));
     [%test_result: Typ.t option]
       (typeinfer
          Context.[Init g1]
          Term.(Bool false))
-      ~expect:(Option.Some(Typ.BaseBool))
+      ~expect:(Option.some(Typ.BaseBool))
 
   let%test_unit "Binary operators" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(BinOp(BinOp.Plus, Var(v1), Var(v1))))
-      ~expect:(Option.Some(Typ.BaseInt));
+      ~expect:(Option.some(Typ.BaseInt));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(BinOp(BinOp.LT, Var(v1), Var(v1))))
-      ~expect:(Option.Some(Typ.BaseBool))
+      ~expect:(Option.some(Typ.BaseBool))
 
   let%test_unit "Unary operators" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseBool, g2)])
          Term.(UniOp(UniOp.Not, Var(v1))))
-      ~expect:(Option.Some(Typ.BaseBool))
+      ~expect:(Option.some(Typ.BaseBool))
 
     let%test_unit "Shortcircuit operators" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseBool, g2)])
          Term.(ShortCircuitOp(ShortCircuitOp.And, Var(v1), Var(v1))))
-      ~expect:(Option.Some(Typ.BaseBool))
+      ~expect:(Option.some(Typ.BaseBool))
 
   let%test_unit "variables" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Var(v2)))
-      ~expect:Option.None;
+      ~expect:None;
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Unq(2, Var(v1))))
-      ~expect:Option.None
+      ~expect:None
 
   let%test_unit "lambda" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
          Term.(Lam(v1, BaseInt, g2, Var(v1))))
-      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+      ~expect:(Option.some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       ~message:"classifier of lambda cannot appear freely in the resulting type"
       (typeinfer
          Context.empty
          Term.(Lam(v1, BaseInt, g2, Quo(g2, Var(v1)))))
-      ~expect:(Option.None);
+      ~expect:(None);
     [%test_result: Typ.t option]
       ~message:"lambda cannot carry an ill-formed type"
       (typeinfer
          Context.empty
          Term.(Lam(v1, Code(g3, BaseInt) (* This type is ill-formed *), g2,
                    Var(v1))))
-      ~expect:(Option.None)
+      ~expect:(None)
 
   let%test_unit "quo and unq" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(Quo(g2, Var(v1))))
-      ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
+      ~expect:(Option.some(Typ.(Code(g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g1, Unq(1, Var(v1)))))
-      ~expect:(Option.Some(Typ.(Code(g1, BaseInt))));
+      ~expect:(Option.some(Typ.(Code(g1, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g2, Unq(0, Var(v1)))))
-      ~expect:(Option.Some(Typ.(Code(g2, BaseInt))));
+      ~expect:(Option.some(Typ.(Code(g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, Code(g1, BaseInt), g2)])
          Term.(Quo(g1, Unq(0, Var(v1)))))
-      ~expect:Option.None
+      ~expect:None
 
   let%test_unit "polymorphic contexts" =
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
          Term.(PolyCls(g2, g1, Quo(g2, Int(1)))))
-      ~expect:(Option.Some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
+      ~expect:(Option.some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
          Term.(PolyCls(g1, g1, Quo(g1, Int(1)))))
-      ~expect:(Option.Some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
+      ~expect:(Option.some(Typ.(PolyCls(g4, g1, Code(g4, BaseInt)))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
          Term.(PolyCls(g2, g3, Quo(g1, Int(1)))))
-      ~expect:(Option.None)
+      ~expect:(None)
 
     let%test_unit "context applications" =
       [%test_result: Typ.t option]
         (typeinfer
            Context.(from [Var(v1, PolyCls(g2, g1, Code(g2, BaseInt)), g3); Cls(g4, g3)])
            Term.(AppCls(Var(v1), g4)))
-        ~expect:(Option.Some(Typ.(Code(g4, BaseInt))));
+        ~expect:(Option.some(Typ.(Code(g4, BaseInt))));
       [%test_result: Typ.t option]
         (typeinfer
            Context.(from [Var(v1, BaseInt, g2); Var(v2, PolyCls(g3, g2, Code(g3, BaseInt)), g4)])
            Term.(AppCls(Var(v2), g1)))
-        ~expect:(Option.None)
+        ~expect:(None)
 
   let%test_unit "fix" =
     [%test_result: Typ.t option]
@@ -502,92 +508,92 @@ let%test_module "typeinfer" = (module struct
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
                        Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
-      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+      ~expect:(Option.some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
                        Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
-      ~expect:(Option.Some(Typ.(Func(BaseInt, BaseInt))));
+      ~expect:(Option.some(Typ.(Func(BaseInt, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.(from [Var(v1, BaseInt, g2)])
          Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
                        PolyCls(g5, g2, Var(v1))))))
-      ~expect:(Option.Some(Typ.(PolyCls(g6, g2, BaseInt))));
+      ~expect:(Option.some(Typ.(PolyCls(g6, g2, BaseInt))));
     [%test_result: Typ.t option]
       (typeinfer
          Context.empty
          Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))
-      ~expect:Option.None
+      ~expect:None
 
     let%test_unit "if-statement" =
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(If(Bool(true), Int(1), Int(2))))
-        ~expect:(Option.Some(Typ.(BaseInt)));
+        ~expect:(Option.some(Typ.(BaseInt)));
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(If(Bool(true), Int(1), Bool(false))))
-        ~expect:(Option.None);
+        ~expect:(None);
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(If(Int(1), Int(1), Int(2))))
-        ~expect:(Option.None)
+        ~expect:(None)
 
     let%test_unit "unit" =
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.Nil)
-        ~expect:(Option.Some(Typ.Unit));
+        ~expect:(Option.some(Typ.Unit));
       [%test_result: Typ.t option]
         (typeinfer
            Context.(from [Var (v1, Typ.(Func(Unit, BaseInt)), g2)])
            Term.(App(Var v1, Nil)))
-        ~expect:(Option.Some(Typ.BaseInt))
+        ~expect:(Option.some(Typ.BaseInt))
 
     let%test_unit "ref" =
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Ref (Int 10)))
-        ~expect:(Option.Some(Typ.(Ref BaseInt)));
+        ~expect:(Option.some(Typ.(Ref BaseInt)));
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Ref (Quo(Cls.init, Int 1))))
-        ~expect:(Option.Some(Typ.(Ref (Code(Cls.init, BaseInt)))));
+        ~expect:(Option.some(Typ.(Ref (Code(Cls.init, BaseInt)))));
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Deref (Ref (Int 10))))
-        ~expect:(Option.Some(Typ.BaseInt));
+        ~expect:(Option.some(Typ.BaseInt));
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Deref (Ref (Int 10))))
-        ~expect:(Option.Some(Typ.BaseInt));
+        ~expect:(Option.some(Typ.BaseInt));
       [%test_result: Typ.t option]
         (typeinfer
            Context.(from [Var (v1, Typ.(Ref BaseInt), g2)])
            Term.(Assign (Var v1, Int 10)))
-        ~expect:(Option.Some(Typ.Unit))
+        ~expect:(Option.some(Typ.Unit))
 
     let%test_unit "shadowing" =
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Lam(v1, BaseInt, g2, Lam(v1, BaseInt, g2, Var(v1)))))
-        ~expect:(Option.Some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
+        ~expect:(Option.some(Typ.(Func(BaseInt, Func(BaseInt, BaseInt)))));
       [%test_result: Typ.t option]
         (typeinfer
            Context.empty
            Term.(Lam(v1, BaseInt, g2, PolyCls(g2, Cls.init, Int(1)))))
-        ~expect:(Option.Some(Typ.(Func(BaseInt, PolyCls(g3, Cls.init, BaseInt)))))
+        ~expect:(Option.some(Typ.(Func(BaseInt, PolyCls(g3, Cls.init, BaseInt)))))
 
     let%test_unit "complex cases: axioms" =
     [%test_result: Typ.t option] (* eta (\g2:>g1.<int@g2>-><int@g2>)-><int->int@g1> *)
@@ -596,7 +602,7 @@ let%test_module "typeinfer" = (module struct
          Term.(Lam(v1, PolyCls(g2, g1, Func(Code(g2, BaseInt), Code(g2, BaseInt))), g2,
                    Quo(g1, Lam(v2, BaseInt, g4,
                                Unq(1, App(AppCls(Var(v1), g4), Quo(g4, Var(v2)))))))))
-      ~expect:(Option.Some(Typ.(Func(
+      ~expect:(Option.some(Typ.(Func(
           PolyCls(g6, g1, Func(Code(g6, BaseInt), Code(g6, BaseInt))),
           Code(g1, Func(BaseInt, BaseInt))))));
     [%test_result: Typ.t option] (* T-like axiom \g2:>g1.<<int@g2>g2>-><int@g2>*)
@@ -604,7 +610,7 @@ let%test_module "typeinfer" = (module struct
          Context.empty
          Term.(PolyCls(g2, g1, Lam(v1, Code(g2, Code(g1, BaseInt)), g3,
                                    Quo(g2, Unq(0, Unq(1, Var(v1))))))))
-      ~expect:(Option.Some(Typ.(
+      ~expect:(Option.some(Typ.(
           PolyCls(g2, g1, Func(Code(g2, Code(g1, BaseInt)), Code(g2, BaseInt))))));
     [%test_result: Typ.t option] (* K4-like axiom \g2:>g1.\g6:>g1.<int@g2>-><<int@g2>@g6> *)
       (typeinfer
@@ -612,7 +618,7 @@ let%test_module "typeinfer" = (module struct
          Term.(PolyCls(g2, g1, PolyCls(g6, g1,
                                        Lam(v1, Code(g2, BaseInt), g3,
                                            Quo(g6, Quo(g2, Unq(2, Var(v1)))))))))
-      ~expect:(Option.Some(Typ.(
+      ~expect:(Option.some(Typ.(
           PolyCls(g2, g1, PolyCls(g6, g1, Func(Code(g2, BaseInt), Code(g6, Code(g2, BaseInt))))))))
 
 end)

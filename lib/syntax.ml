@@ -1,9 +1,9 @@
-open Base
+open Core
 
 module Cls = struct
   module T = struct
     type t = Init | Cls of int | Named of string
-    [@@deriving compare, equal, sexp]
+    [@@deriving compare, equal, sexp, hash]
   end
 
   include T
@@ -35,15 +35,20 @@ let%test_unit "alloc generate different classifiers" =
   assert (not (Cls.equal cls1 cls2))
 
 module Typ = struct
-  type t =
-    | BaseInt
-    | BaseBool
-    | Func of t * t
-    | Code of Cls.t * t
-    | PolyCls of Cls.t * Cls.t * t
-    | Unit
-    | Ref of t
-  [@@deriving compare, sexp]
+  module T = struct
+    type t =
+      | BaseInt
+      | BaseBool
+      | Func of t * t
+      | Code of Cls.t * t
+      | PolyCls of Cls.t * Cls.t * t
+      | Unit
+      | Ref of t
+    [@@deriving compare, sexp, hash]
+  end
+
+  include T
+  include Hashable.Make(T)
 
   let rec rename_cls (from: Cls.t) (dest: Cls.t) (ty: t) =
     match ty with
@@ -151,7 +156,7 @@ end)
 
 module Var = struct
   type t = Var of int | Named of string
-  [@@deriving compare, equal, sexp]
+  [@@deriving compare, equal, sexp, hash]
 
   let from_string name =
     Named(name)
@@ -365,16 +370,21 @@ module Term = struct
 end
 
 module Context = struct
-  type elm =
-    | Init of Cls.t
-    | Var of Var.t * Typ.t * Cls.t
-    | Lock of Cls.t
-    | Unlock of int
-    | Cls of Cls.t * Cls.t
-  [@@deriving compare, equal, sexp]
+  module T = struct
+    type elm =
+      | Init of Cls.t
+      | Var of Var.t * Typ.t * Cls.t
+      | Lock of Cls.t
+      | Unlock of int
+      | Cls of Cls.t * Cls.t
+    [@@deriving compare, equal, sexp, hash]
 
-  type t = elm list
-  [@@deriving compare, equal, sexp]
+    type t = elm list
+    [@@deriving compare, equal, sexp, hash]
+  end
+
+  include T
+  include Hashable.Make(T)
 
   let empty = [Init(Cls.Init)]
   let from l = (Init(Cls.Init) :: l) |> List.rev
@@ -436,7 +446,7 @@ module Context = struct
 
   let rec lookup_var (ctx: t) (v: Var.t): (Typ.t * Cls.t) option =
     (match ctx with
-     | Init _ :: _ -> Option.None
+     | Init _ :: _ -> None
      | Var (v1, ty, cls) :: rest ->
        if Var.equal v1 v then Option.some (ty, cls) else lookup_var rest v
      | _ :: rest -> lookup_var rest v
@@ -508,9 +518,9 @@ let%test_module "context" = (module struct
     [%test_eq: Var.t list] (domain_var ctx12) [v4; v3; v2; v1]
 
   let%test_unit "lookup a variable" =
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx1 v1) Option.None;
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v1) (Option.Some(BaseBool, g2));
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v2) Option.None;
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v2) (Option.Some(BaseBool, g4));
-    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v3) (Option.Some(BaseInt, g5));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx1 v1) None;
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v1) (Option.some(Typ.BaseBool, g2));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx2 v2) None;
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v2) (Option.some(Typ.BaseBool, g4));
+    [%test_eq: (Typ.t * Cls.t) option] (lookup_var ctx12 v3) (Option.some(Typ.BaseInt, g5));
 end)
