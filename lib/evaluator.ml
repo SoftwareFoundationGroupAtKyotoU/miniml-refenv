@@ -259,8 +259,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
               | Value.Code (Term.Quo (cls2, body)) when (Cls.equal cls cls2) ->
                 Value.Code (Term.Quo (RuntimeEnv.current renv, Letcs(v, ty, cls, e1, body)))
               | _ -> e2v)
-              , store) |> k
-       ))
+              , store) |> k))
    | (_, Term.Int _) -> (Value.Fut tm, store) |> k
    | (_, Term.Bool _) -> (Value.Fut tm, store) |> k
    | (l, Term.BinOp(op, a, b)) ->

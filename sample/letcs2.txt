@@ -1,0 +1,9 @@
+let cs inline_add[g1:>!](a:<int@g1>)(b:<int@g1>):<int@g1>@g =
+  `{@g1 ~a + ~b} in
+`{@g
+  if ~{inline_add@@! `{@! 1 } `{@! 2 }} < 5 then
+    `{@g ~{inline_add@@! `{@! 3 } `{@! 4 }}}
+  else
+   `{@g 2 }
+}
+
