@@ -32,13 +32,14 @@ module CodeEnv = struct
         else rest |> rename_var v
     | _ :: rest -> rest |> rename_var v
 
-  let rec rename_cls(cls:Cls.t)(env: t): Cls.t =
+  let rec rename_cls(cls: Cls.t)(env: t): Cls.t =
     match env with
     | [] -> cls
     | Cls(from, dest) :: rest ->
-        if Cls.equal cls from
-        then dest
-        else rest |> rename_cls cls
+      if Cls.equal cls from
+      then
+        rest |> rename_cls dest
+      else rest |> rename_cls cls
     | _ :: rest -> rest |> rename_cls cls
 
   let rec rename_cls_in_typ(typ: Typ.t)(env: t): Typ.t =
@@ -207,9 +208,9 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
    | (0, Term.AppCls (tm, cls1)) ->
      tm |> eval 0 renv cenv store (fun (v, store) -> match v with
          | Clos(renv', cenv', PolyCls(cls2, _, body)) ->
-           body |> eval 0 renv' (CodeEnv.Cls(cls2, cls1)::cenv') store k
+           body |> eval 0 renv' (CodeEnv.Cls(cls2, cenv |> CodeEnv.rename_cls cls1)::cenv') store k
          | Fix(renv', cenv', Lam(self, _, _, PolyCls(cls2, _, body))) ->
-           body |> eval 0 ((self, v) :: renv') (CodeEnv.Cls(cls2, cls1)::cenv') store k
+           body |> eval 0 ((self, v) :: renv') (CodeEnv.Cls(cls2, cenv |> CodeEnv.rename_cls cls1)::cenv') store k
          | _ -> failwith "hogege 0 appcls")
    | (0, Term.Fix f) ->
      f |> eval 0 renv cenv store (fun (fv, store) ->
