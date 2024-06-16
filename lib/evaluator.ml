@@ -285,7 +285,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
      | (_, Term.Var v) ->
        (Value.Fut (Term.Var(cenv |> CodeEnv.rename_var v)), store) |> k
      | (l, Term.Lam(v, typ, cls, body)) ->
-       let v' = Var.alloc () in
+       let v' = Var.color v in
        let cls' = Cls.color cls in
        let typ' = cenv |> CodeEnv.rename_cls_in_typ typ in
        let cenv' = (CodeEnv.(Var(v, v') :: Cls(cls, cls') :: cenv)) in
@@ -362,7 +362,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
                | _ -> failwith "hoge l assign"))
      | (l, Term.Letcs(v, ty, cls, e1, e2)) ->
        e1 |> eval l renv cenv store (fun (e1v, store) ->
-           let v' = Var.alloc () in
+           let v' = Var.color v in
            let ty' = cenv |> CodeEnv.rename_cls_in_typ ty in
            let cls' = Cls.color cls in
            let cenv' = CodeEnv.(Cls(cls, cls') :: Var(v, v') :: cenv) in

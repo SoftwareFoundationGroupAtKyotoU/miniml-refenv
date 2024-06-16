@@ -78,8 +78,8 @@ let%test_module "well_formed_context" = (module struct
   let g2 = Cls.gen ()
   let g3 = Cls.gen ()
 
-  let v1 = Var.alloc ()
-  let v2 = Var.alloc ()
+  let v1 = Var.gen ()
+  let v2 = Var.gen ()
 
   let%test_unit "well-formed contexts" =
     assert (well_formed_context [Init g1] |> is_ok);
@@ -125,8 +125,8 @@ let%test_module "well_formed_type" = (module struct
   let g5 = Cls.gen ()
   let g6 = Cls.gen ()
 
-  let v1 = Var.alloc ()
-  let v2 = Var.alloc ()
+  let v1 = Var.gen ()
+  let v2 = Var.gen ()
 
   let ctx = Context.(from [
       Var(v1, BaseInt, g2);
@@ -202,9 +202,9 @@ let%test_module "reachable_intuitionistic" = (module struct
   let g5 = Cls.gen ()
   let g6 = Cls.gen ()
 
-  let v1 = Var.alloc ()
-  let v2 = Var.alloc ()
-  let v3 = Var.alloc ()
+  let v1 = Var.gen ()
+  let v2 = Var.gen ()
+  let v3 = Var.gen ()
 
   let ctx = Context.(from [
       Var(v1, BaseInt, g2);
@@ -304,7 +304,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): (Typ.t, string) Result.t =
       | None -> fail (sprintf !"Undefined variable: %{sexp:Var.t}" v))
    | Term.Lam (v, ty, cls, body) ->
      (* rename v and cls to fresh identifiers to avoid shadowing *)
-     let v' = Var.alloc () in
+     let v' = Var.color v in
      let cls' = Cls.color cls in
      let body' = body
                  |> Term.rename_var v v'
@@ -425,9 +425,9 @@ let%test_module "typeinfer" = (module struct
   let g5 = Cls.gen ()
   let g6 = Cls.gen ()
 
-  let v1 = Var.alloc ()
-  let v2 = Var.alloc ()
-  let v3 = Var.alloc ()
+  let v1 = Var.gen ()
+  let v2 = Var.gen ()
+  let v3 = Var.gen ()
 
   let%test_unit "failure on ill-formed context" =
     assert (is_error

@@ -110,7 +110,7 @@ referringvar:
 
 bindingvar:
   | ID { Var.from_string($1) }
-  | UNDERSCORE { Var.alloc() }
+  | UNDERSCORE { Var.gen() }
 
 expr:
   (* Literals *)
@@ -202,7 +202,7 @@ expr:
 
 (* Let expression for unit *)
   | LET LPAREN RPAREN EQ expr IN expr %prec prec_let
-    { Term.(App(Lam(Var.alloc(), Typ.Unit, Cls.gen(), $7), $5)) }
+    { Term.(App(Lam(Var.gen(), Typ.Unit, Cls.gen(), $7), $5)) }
 (* ref *)
   | REF expr
     { Term.Ref $2 }

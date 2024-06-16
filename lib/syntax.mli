@@ -39,7 +39,8 @@ module Var: sig
   [@@deriving compare, equal, sexp, hash]
 
   val from_string: string -> t
-  val alloc: unit -> t
+  val gen: unit -> t
+  val color: t -> t
 end
 
 module BinOp : sig

@@ -166,23 +166,31 @@ let%test_module "subst classifiers in a type" = (module struct
 end)
 
 module Var = struct
-  type t = Var of int | Named of string
+  type t = Gen of int | Raw of string | Colored of string * int
   [@@deriving compare, equal, sexp, hash]
 
   let from_string name =
-    Named(name)
+    Raw(name)
 
   let counter = Ref.create 0
 
-  let alloc () =
+  let gen () =
     let count = !counter in
     counter := count + 1;
-    Var(count)
+    Gen(count)
+
+  let color (orig:t): t =
+    let count = !counter in
+    counter := count + 1;
+    match (orig : t) with
+    | Gen _ -> Gen(count)
+    | Raw name
+    | Colored (name, _) -> Colored(name, count)
 end
 
 let%test_unit "alloc generate different variables" =
-  let v1 = Var.alloc () in
-  let v2 = Var.alloc () in
+  let v1 = Var.gen () in
+  let v2 = Var.gen () in
   assert (Var.equal v1 v1);
   assert (not (Var.equal v1 v2))
 
@@ -350,7 +358,7 @@ module Term = struct
     | (Var av, Var bv) ->
       Var.equal av bv
     | (Lam (av, aty, acls, abody), Lam(bv, bty, bcls, bbody)) ->
-      let v' = Var.alloc () in
+      let v' = Var.gen () in
       let cls' = Cls.gen () in
       let abody' = abody |> rename_var av v' |> rename_cls acls cls' in
       let bbody' = bbody |> rename_var bv v' |> rename_cls bcls cls' in
@@ -381,7 +389,7 @@ module Term = struct
     | Assign (aloc, anew), Assign (bloc, bnew) ->
       equal aloc bloc && equal anew bnew
     | Letcs (va, tya, clsa, e1a, e2a), Letcs (vb, tyb, clsb, e1b, e2b) ->
-      let v' = Var.alloc () in
+      let v' = Var.gen () in
       let cls' = Cls.gen () in
       let e2a' = e2a |> rename_var va v' |> rename_cls clsa cls' in
       let e2b' = e2b |> rename_var vb v' |> rename_cls clsb cls' in
@@ -491,10 +499,10 @@ let%test_module "context" = (module struct
   let g5 = Cls.gen ()
   let g7 = Cls.gen ()
 
-  let v1 = Var.alloc ()
-  let v2 = Var.alloc ()
-  let v3 = Var.alloc ()
-  let v4 = Var.alloc ()
+  let v1 = Var.gen ()
+  let v2 = Var.gen ()
+  let v3 = Var.gen ()
+  let v4 = Var.gen ()
 
   let ctx1 = Context.from []
   let ctx2 = Context.from [Var(v1, BaseBool, g2)]
