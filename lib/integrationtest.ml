@@ -1,8 +1,9 @@
 open Base
 open Syntax
+open Result
 
 let%test_unit "hoge" =
-  [%test_result: Typ.t option]
+  [%test_result: (Typ.t, string) Result.t]
     ({|
         fun(x:<int@!>) ->
           `{@!
@@ -13,16 +14,16 @@ let%test_unit "hoge" =
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some("<int@!>-><int@!>" |> Cui.read_typ));
-  [%test_result: Typ.t option]
+    ~expect:(return ("<int@!>-><int@!>" |> Cui.read_typ));
+  [%test_result: (Typ.t, string) Result.t]
     ({|
         fun(f:[g1:>!]<int@g1>-><int@g1>) ->
           `{@! fun(x:int@g2) -> ~{ f@@g2 `{@g2 x } }}
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some("([g1:>!]<int@g1>-><int@g1>)-><int->int@!>" |> Cui.read_typ));
-  [%test_result: Typ.t option]
+    ~expect:(return ("([g1:>!]<int@g1>-><int@g1>)-><int->int@!>" |> Cui.read_typ));
+  [%test_result: (Typ.t, string) Result.t]
     ({|
         let f[g1:>!](x:<int@g1>) : <int@g1>
           = `{@g1 1 + ~x } in
@@ -30,8 +31,8 @@ let%test_unit "hoge" =
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some("int -> int" |> Cui.read_typ));
-  [%test_result: Typ.t option]
+    ~expect:(return ("int -> int" |> Cui.read_typ));
+  [%test_result: (Typ.t, string) Result.t]
     ({|
          let rec spow[g1:>!](n:int)(x:<int@g1>):<int@g1> =
            if n < 1 then
@@ -42,10 +43,10 @@ let%test_unit "hoge" =
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some("<int@!>" |> Cui.read_typ))
+    ~expect:(return ("<int@!>" |> Cui.read_typ))
 
 let%test_unit "avoidance of scope extrusion" =
-  [%test_result: Typ.t option]
+  assert (is_error
     ({|
       let r: <int@!> = ref `{@! 0 } in
       let x: <int->int@!> = `{@! fun (x:int@g1) ->
@@ -58,9 +59,8 @@ let%test_unit "avoidance of scope extrusion" =
      |}
      |> Cui.read_term
      |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.None);
-  [%test_result: Typ.t option]
-    ({|
+  );
+  assert (is_error ({|
       let r: <int@!> = ref `{@! 0 } in
       let x: <int->int@!> = `{@! fun (x:int@g1) ->
           ~{
@@ -71,10 +71,8 @@ let%test_unit "avoidance of scope extrusion" =
       !r
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.None);
-  [%test_result: Typ.t option]
-    ({|
+     |> Typechecker.typeinfer Context.empty));
+  assert (is_error ({|
       let r: <int@!> = ref `{@g1 0 } in
       let x: <int->int@!> = `{@! fun (x:int@g1) ->
           ~{
@@ -85,8 +83,7 @@ let%test_unit "avoidance of scope extrusion" =
       !r
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.None)
+     |> Typechecker.typeinfer Context.empty))
 
 let%test_unit "big test cases" =
   let subject = Cui.read_term {|
@@ -113,9 +110,9 @@ let%test_unit "big test cases" =
         } in
       spower 11
      |} in
-  [%test_result: Typ.t option]
+  [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some(Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
+    ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
     ~expect:(Evaluator.Value.Code(
@@ -156,9 +153,9 @@ let%test_unit "big test cases" =
         ~0{spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y)} in
       (~0{spower 11} 2) + (power 11 2)
   |} in
-  [%test_result: Typ.t option]
+  [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some(BaseInt));
+    ~expect:(return (Typ.BaseInt));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
     ~expect:(Evaluator.Value.Int(4096))
@@ -201,9 +198,9 @@ let%test_unit "big test cases" =
                  `{@h1 fun (z:int@h3) -> (fib 100) + ~{guarded_div@@h1@@h3 locus `{@h3 z } `{@h1 y }}})}
            }
      |} in
-  [%test_result: Typ.t option]
+  [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer Context.empty)
-    ~expect:(Option.Some(Typ.(Code(Cls.init, Func(BaseInt, Func(BaseInt, BaseInt))))));
+    ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, Func(BaseInt, BaseInt))))));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
     ~expect:(Evaluator.Value.Code(
