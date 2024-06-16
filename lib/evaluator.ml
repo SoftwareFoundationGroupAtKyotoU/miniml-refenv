@@ -60,7 +60,7 @@ module CodeEnv = struct
       let ty' = env |> rename_cls_in_typ ty in
       Typ.Code(base', ty')
     | Typ.PolyCls (cls, base, ty) ->
-      let cls' = Cls.alloc () in
+      let cls' = Cls.color cls in
       let base' = env |> rename_cls base in
       let ty' = ty |> Typ.rename_cls cls cls' in
       let ty' = env |> rename_cls_in_typ ty' in
@@ -286,7 +286,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
        (Value.Fut (Term.Var(cenv |> CodeEnv.rename_var v)), store) |> k
      | (l, Term.Lam(v, typ, cls, body)) ->
        let v' = Var.alloc () in
-       let cls' = Cls.alloc() in
+       let cls' = Cls.color cls in
        let typ' = cenv |> CodeEnv.rename_cls_in_typ typ in
        let cenv' = (CodeEnv.(Var(v, v') :: Cls(cls, cls') :: cenv)) in
        body |> eval l renv cenv' store (fun (v, store) ->
@@ -319,7 +319,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
               | Fut(body) -> (Fut(Term.Unq(diff, body)), store) |> k
               | _ -> failwith "hoge l>diff unq"))
      | (l, Term.PolyCls(cls, base, body)) ->
-       let cls' = Cls.alloc() in
+       let cls' = Cls.color cls in
        let base' = cenv |> CodeEnv.rename_cls base in
        let cenv' = (CodeEnv.(Cls(cls, cls') :: cenv)) in
        body |> eval l renv cenv' store (fun (v, store) ->
@@ -364,7 +364,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
        e1 |> eval l renv cenv store (fun (e1v, store) ->
            let v' = Var.alloc () in
            let ty' = cenv |> CodeEnv.rename_cls_in_typ ty in
-           let cls' = Cls.alloc () in
+           let cls' = Cls.color cls in
            let cenv' = CodeEnv.(Cls(cls, cls') :: Var(v, v') :: cenv) in
            e2 |> eval l renv cenv' store (fun (e2v, store) ->
                ((match (e1v, e2v) with

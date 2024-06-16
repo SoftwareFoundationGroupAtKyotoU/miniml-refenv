@@ -6,7 +6,8 @@ module Cls: sig
 
   val init: t
   val from_string: string -> t
-  val alloc: unit -> t
+  val gen: unit -> t
+  val color: t -> t
   val rename_cls: t -> t -> t -> t
 
   include Comparator.S with type t := t

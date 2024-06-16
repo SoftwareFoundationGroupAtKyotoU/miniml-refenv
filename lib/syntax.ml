@@ -2,7 +2,11 @@ open Core
 
 module Cls = struct
   module T = struct
-    type t = Init | Cls of int | Named of string
+    type t =
+      | Init
+      | Gen of int
+      | Raw of string
+      | Colored of string * int
     [@@deriving compare, equal, sexp, hash]
   end
 
@@ -16,12 +20,19 @@ module Cls = struct
   let counter = Ref.create 0
 
   let from_string name =
-    Named name
+    Raw name
 
-  let alloc () =
+  let gen () =
     let count = !counter in
     counter := count + 1;
-    Cls(count)
+    Gen(count)
+
+  let color (orig:t) =
+    let count = !counter in
+    counter := count + 1;
+    (match orig with
+     | Init | Gen _ -> Gen(count)
+     | Raw name | Colored (name, _) -> Colored(name, count))
 
   let rename_cls(from:t)(dest:t)(cls:t):t =
     if equal from cls then dest else cls
@@ -29,8 +40,8 @@ module Cls = struct
 end
 
 let%test_unit "alloc generate different classifiers" =
-  let cls1 = Cls.alloc () in
-  let cls2 = Cls.alloc () in
+  let cls1 = Cls.gen () in
+  let cls2 = Cls.gen () in
   assert (Cls.equal cls1 cls1);
   assert (not (Cls.equal cls1 cls2))
 
@@ -89,7 +100,7 @@ module Typ = struct
     | Code(cls1, tbody1), Code(cls2, tbody2) -> (Cls.equal cls1 cls2) && (equal tbody1 tbody2)
     | PolyCls(cls1, base1, tbody1), PolyCls(cls2, base2, tbody2) ->
       (Cls.equal base1 base2) &&
-      let clsfresh = Cls.alloc () in
+      let clsfresh = Cls.gen () in
       equal (tbody1 |> rename_cls cls1 clsfresh) (tbody2 |> rename_cls cls2 clsfresh)
     | Ref ty1, Ref ty2 -> equal ty1 ty2
     | Unit, Unit -> true
@@ -100,9 +111,9 @@ module Typ = struct
 end
 
 let%test_module "subst classifiers in a type" = (module struct
-  let cls1 = Cls.alloc ()
-  let cls2 = Cls.alloc ()
-  let cls3 = Cls.alloc ()
+  let cls1 = Cls.gen ()
+  let cls2 = Cls.gen ()
+  let cls3 = Cls.gen ()
 
   let%test_unit "equal simple types" =
     [%test_eq: Typ.t] Typ.BaseInt Typ.BaseInt;
@@ -134,9 +145,9 @@ end)
 
 
 let%test_module "subst classifiers in a type" = (module struct
-  let g1 = Cls.alloc ()
-  let g2 = Cls.alloc ()
-  let g3 = Cls.alloc ()
+  let g1 = Cls.gen ()
+  let g2 = Cls.gen ()
+  let g3 = Cls.gen ()
 
   let%test_unit "case 1" =
     let ty = Typ.(Func(Code(g1, BaseInt), Code(g1, BaseBool))) in
@@ -340,21 +351,21 @@ module Term = struct
       Var.equal av bv
     | (Lam (av, aty, acls, abody), Lam(bv, bty, bcls, bbody)) ->
       let v' = Var.alloc () in
-      let cls' = Cls.alloc () in
+      let cls' = Cls.gen () in
       let abody' = abody |> rename_var av v' |> rename_cls acls cls' in
       let bbody' = bbody |> rename_var bv v' |> rename_cls bcls cls' in
       Typ.equal aty bty && equal abody' bbody'
     | (App (af, aa), App(bf, ba)) ->
       equal af bf && equal aa ba
     | (Quo (acls, abody), Quo (bcls, bbody)) ->
-      let cls' = Cls.alloc () in
+      let cls' = Cls.gen () in
       let abody' = abody |> rename_cls acls cls' in
       let bbody' = bbody |> rename_cls bcls cls' in
       equal abody' bbody'
     | (Unq (adiff, atm), Unq (bdiff, btm)) ->
       Int.equal adiff bdiff && equal atm btm
     | (PolyCls (acls, abase, abody), PolyCls (bcls, bbase, bbody)) ->
-      let cls' = Cls.alloc () in
+      let cls' = Cls.gen () in
       let abody' = abody |> rename_cls acls cls' in
       let bbody' = bbody |> rename_cls bcls cls' in
       Cls.equal abase bbase && equal abody' bbody'
@@ -371,7 +382,7 @@ module Term = struct
       equal aloc bloc && equal anew bnew
     | Letcs (va, tya, clsa, e1a, e2a), Letcs (vb, tyb, clsb, e1b, e2b) ->
       let v' = Var.alloc () in
-      let cls' = Cls.alloc () in
+      let cls' = Cls.gen () in
       let e2a' = e2a |> rename_var va v' |> rename_cls clsa cls' in
       let e2b' = e2b |> rename_var vb v' |> rename_cls clsb cls' in
       Typ.equal tya tyb
@@ -474,11 +485,11 @@ let%test_module "context" = (module struct
   open Context
 
   let g1 = Cls.init
-  let g2 = Cls.alloc ()
-  let g3 = Cls.alloc ()
-  let g4 = Cls.alloc ()
-  let g5 = Cls.alloc ()
-  let g7 = Cls.alloc ()
+  let g2 = Cls.gen ()
+  let g3 = Cls.gen ()
+  let g4 = Cls.gen ()
+  let g5 = Cls.gen ()
+  let g7 = Cls.gen ()
 
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()

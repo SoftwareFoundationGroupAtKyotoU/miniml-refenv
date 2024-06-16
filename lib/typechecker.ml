@@ -75,8 +75,8 @@ let%test_module "well_formed_context" = (module struct
   open Result
 
   let g1 = Cls.init
-  let g2 = Cls.alloc ()
-  let g3 = Cls.alloc ()
+  let g2 = Cls.gen ()
+  let g3 = Cls.gen ()
 
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()
@@ -120,10 +120,10 @@ end)
 
 let%test_module "well_formed_type" = (module struct
   let g1 = Cls.init
-  let g2 = Cls.alloc ()
-  let g4 = Cls.alloc ()
-  let g5 = Cls.alloc ()
-  let g6 = Cls.alloc ()
+  let g2 = Cls.gen ()
+  let g4 = Cls.gen ()
+  let g5 = Cls.gen ()
+  let g6 = Cls.gen ()
 
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()
@@ -196,11 +196,11 @@ let rec reachable_intuitionistic (ctx: Context.t) (cls1: Cls.t) (cls2: Cls.t): b
 
 let%test_module "reachable_intuitionistic" = (module struct
   let g1 = Cls.init
-  let g2 = Cls.alloc ()
-  let g3 = Cls.alloc ()
-  let g4 = Cls.alloc ()
-  let g5 = Cls.alloc ()
-  let g6 = Cls.alloc ()
+  let g2 = Cls.gen ()
+  let g3 = Cls.gen ()
+  let g4 = Cls.gen ()
+  let g5 = Cls.gen ()
+  let g6 = Cls.gen ()
 
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()
@@ -305,7 +305,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): (Typ.t, string) Result.t =
    | Term.Lam (v, ty, cls, body) ->
      (* rename v and cls to fresh identifiers to avoid shadowing *)
      let v' = Var.alloc () in
-     let cls' = Cls.alloc () in
+     let cls' = Cls.color cls in
      let body' = body
                  |> Term.rename_var v v'
                  |> Term.rename_cls cls cls' in
@@ -342,7 +342,7 @@ let rec typeinfer (ctx: Context.t) (tm: Term.t): (Typ.t, string) Result.t =
       | _ -> type_error_form quot "code type" inferred)
    | Term.PolyCls (cls, base, body) ->
      (* rename cls to avoid shadowing *)
-     let cls' = Cls.alloc () in
+     let cls' = Cls.color cls in
      let body' = body |> Term.rename_cls cls cls' in
      let ctx2 = Context.Cls(cls', base) :: ctx in
      let%bind inferred = typeinfer ctx2 body' in
@@ -419,11 +419,11 @@ let%test_module "typeinfer" = (module struct
   open Result
 
   let g1 = Cls.init
-  let g2 = Cls.alloc ()
-  let g3 = Cls.alloc ()
-  let g4 = Cls.alloc ()
-  let g5 = Cls.alloc ()
-  let g6 = Cls.alloc ()
+  let g2 = Cls.gen ()
+  let g3 = Cls.gen ()
+  let g4 = Cls.gen ()
+  let g5 = Cls.gen ()
+  let g6 = Cls.gen ()
 
   let v1 = Var.alloc ()
   let v2 = Var.alloc ()

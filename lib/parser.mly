@@ -79,7 +79,7 @@ toplevel_typ:
 
 bindingcls:
   | ID { Cls.from_string $1 }
-  | UNDERSCORE { Cls.alloc () }
+  | UNDERSCORE { Cls.gen () }
 
 referringcls:
   | ID { Cls.from_string $1 }
@@ -140,14 +140,14 @@ expr:
     { Term.(AppCls($1, $3)) }
 (* Let expression *)
   | LET bindingvar COLON typ EQ expr IN expr %prec prec_let
-    { Term.(App(Lam($2, $4, Cls.alloc(), $8), $6)) }
+    { Term.(App(Lam($2, $4, Cls.gen(), $8), $6)) }
   | LET bindingvar COLON typ AT referringcls EQ expr IN expr %prec prec_let
     { Term.(App(Lam($2, $4, $6, $10), $8)) }
   | LET bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
     {
       let f = expand_arglist $3 $7 in
       let ftyp = expand_functype $3 $5 in
-      Term.(App(Lam($2, ftyp, Cls.alloc(), $9), f))
+      Term.(App(Lam($2, ftyp, Cls.gen(), $9), f))
     }
   | LET bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
@@ -160,8 +160,8 @@ expr:
     {
       let f = expand_arglist $4 $8 in
       let ftyp = expand_functype $4 $6 in
-      Term.(App(Lam($3, ftyp, Cls.alloc(), $10),
-            Fix(Lam($3, ftyp, Cls.alloc(), f))))
+      Term.(App(Lam($3, ftyp, Cls.gen(), $10),
+            Fix(Lam($3, ftyp, Cls.gen(), f))))
     }
   | LET REC bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
@@ -172,14 +172,14 @@ expr:
     }
 (* Cross-stage definition *)
   | LET CS bindingvar COLON typ EQ expr IN expr %prec prec_let
-    { Term.(Letcs($3, $5, Cls.alloc(), $7, $9)) }
+    { Term.(Letcs($3, $5, Cls.gen(), $7, $9)) }
   | LET CS bindingvar COLON typ AT referringcls EQ expr IN expr %prec prec_let
     { Term.(Letcs($3, $5, $7, $9, $11)) }
   | LET CS bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
     {
       let f = expand_arglist $4 $8 in
       let ftyp = expand_functype $4 $6 in
-      Term.(Letcs($3, ftyp, Cls.alloc(), f, $10))
+      Term.(Letcs($3, ftyp, Cls.gen(), f, $10))
     }
   | LET CS bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
@@ -190,8 +190,8 @@ expr:
   | LET REC CS bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
     {
       let ftyp = expand_functype $5 $7 in
-      let f = Term.(Fix(Lam($4, ftyp, Cls.alloc(), expand_arglist $5 $9))) in
-      Term.(Letcs($4, ftyp, Cls.alloc(), f, $11))
+      let f = Term.(Fix(Lam($4, ftyp, Cls.gen(), expand_arglist $5 $9))) in
+      Term.(Letcs($4, ftyp, Cls.gen(), f, $11))
     }
   | LET REC CS bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
@@ -202,7 +202,7 @@ expr:
 
 (* Let expression for unit *)
   | LET LPAREN RPAREN EQ expr IN expr %prec prec_let
-    { Term.(App(Lam(Var.alloc(), Typ.Unit, Cls.alloc(), $7), $5)) }
+    { Term.(App(Lam(Var.alloc(), Typ.Unit, Cls.gen(), $7), $5)) }
 (* ref *)
   | REF expr
     { Term.Ref $2 }
@@ -215,7 +215,7 @@ arg:
   | LPAREN bindingvar COLON typ AT referringcls RPAREN
     { VarArg($2, $4, $6) }
   | LPAREN bindingvar COLON typ RPAREN
-    { VarArg($2, $4, Cls.alloc()) }
+    { VarArg($2, $4, Cls.gen()) }
   | LBRACKET bindingcls CLSBOUND referringcls RBRACKET
     { ClsArg($2, $4) }
 
