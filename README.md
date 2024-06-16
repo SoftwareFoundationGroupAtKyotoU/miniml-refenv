@@ -1,6 +1,6 @@
 # install
 ```
-opam install dune base stdio menhir ppx_compare ppx_inline_text ppx_assert ppx_sexp_conv
+opam install dune base core stdio menhir ppx_jane
 ```
 
 # build
