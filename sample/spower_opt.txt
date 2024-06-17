@@ -21,4 +21,7 @@ let spower(n:int):<int->int@!> =
        ~{ spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y) }
   } in
 
-spower 11
+`{@!
+  let power11(x:int):int = ~{spower 11} x in
+  power11 2
+}
