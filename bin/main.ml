@@ -2,7 +2,7 @@ open Lib
 open Lib.Syntax
 
 let one_iter(tm:Term.t) =
-  let inferredtype = Typechecker.typeinfer Context.empty tm in
+  let inferredtype = Typechecker.typeinfer true Context.empty tm in
   match inferredtype with
   | Result.Error(msg) ->
     Stdio.printf "Type error:%s\n" msg;

@@ -13,7 +13,7 @@ let%test_unit "hoge" =
           }
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
+     |> Typechecker.typeinfer true Context.empty)
     ~expect:(return ("<int@!>-><int@!>" |> Cui.read_typ));
   [%test_result: (Typ.t, string) Result.t]
     ({|
@@ -21,7 +21,7 @@ let%test_unit "hoge" =
           `{@! fun(x:int@g2) -> ~{ f@@g2 `{@g2 x } }}
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
+     |> Typechecker.typeinfer true Context.empty)
     ~expect:(return ("([g1:>!]<int@g1>-><int@g1>)-><int->int@!>" |> Cui.read_typ));
   [%test_result: (Typ.t, string) Result.t]
     ({|
@@ -30,7 +30,7 @@ let%test_unit "hoge" =
         fun (y:int@g2) -> ~0{ f@@g2 `{@g2 y } }
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
+     |> Typechecker.typeinfer true Context.empty)
     ~expect:(return ("int -> int" |> Cui.read_typ));
   [%test_result: (Typ.t, string) Result.t]
     ({|
@@ -42,7 +42,7 @@ let%test_unit "hoge" =
          spow@@! 4 `{@! 3 }
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
+     |> Typechecker.typeinfer true Context.empty)
     ~expect:(return ("<int@!>" |> Cui.read_typ))
 
 let%test_unit "avoidance of scope extrusion" =
@@ -58,7 +58,7 @@ let%test_unit "avoidance of scope extrusion" =
       !r
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty)
+     |> Typechecker.typeinfer true Context.empty)
   );
   assert (is_error ({|
       let r: <int@!> = ref `{@! 0 } in
@@ -71,7 +71,7 @@ let%test_unit "avoidance of scope extrusion" =
       !r
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty));
+     |> Typechecker.typeinfer true Context.empty));
   assert (is_error ({|
       let r: <int@!> = ref `{@g1 0 } in
       let x: <int->int@!> = `{@! fun (x:int@g1) ->
@@ -83,7 +83,7 @@ let%test_unit "avoidance of scope extrusion" =
       !r
      |}
      |> Cui.read_term
-     |> Typechecker.typeinfer Context.empty))
+     |> Typechecker.typeinfer true Context.empty))
 
 let%test_unit "big test cases" =
   let subject = Cui.read_term {|
@@ -111,7 +111,7 @@ let%test_unit "big test cases" =
       spower 11
      |} in
   [%test_result: (Typ.t, string) Result.t]
-    (subject |> Typechecker.typeinfer Context.empty)
+    (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
@@ -154,7 +154,7 @@ let%test_unit "big test cases" =
       (~0{spower 11} 2) + (power 11 2)
   |} in
   [%test_result: (Typ.t, string) Result.t]
-    (subject |> Typechecker.typeinfer Context.empty)
+    (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.BaseInt));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
@@ -199,7 +199,7 @@ let%test_unit "big test cases" =
            }
      |} in
   [%test_result: (Typ.t, string) Result.t]
-    (subject |> Typechecker.typeinfer Context.empty)
+    (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, Func(BaseInt, BaseInt))))));
   [%test_result: Evaluator.Value.t]
     (subject |> Evaluator.eval_v)
