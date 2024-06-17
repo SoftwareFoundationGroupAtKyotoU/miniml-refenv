@@ -85,6 +85,21 @@ let%test_unit "avoidance of scope extrusion" =
      |> Cui.read_term
      |> Typechecker.typeinfer true Context.empty))
 
+let%test_unit "nested rename" =
+  let _ = "This test case confirms that g1 in f will be properly renamed to !" in
+  let subject = Cui.read_term {|
+      let f[g1:>!](k : [g2:>g1]<int@g2> -> <int@g2>):<int@g1> = k@@g1 `{@g1 1 } in
+        f@@! (fun[g2:>!](x:<int@g2>) -> `{@g2 1 + ~x })
+      |} in
+  [%test_result: (Typ.t, string) Result.t]
+    (subject |> Typechecker.typeinfer true Context.empty)
+    ~expect:(return (Typ.(Code(Cls.init, BaseInt))));
+  [%test_result: Evaluator.Value.t]
+    (subject |> Evaluator.eval_v)
+    ~expect:(Evaluator.Value.Code(
+        "`{@! 1 + 1 }"  |> Cui.read_term
+      ))
+
 let%test_unit "big test cases" =
   let subject = Cui.read_term {|
       let rec spower_[g:>!](n:int)(xq:<int@g>)(cont:[h:>g]<int@h>-><int@h>):<int@g> =
