@@ -11,40 +11,40 @@ let rec well_formed_context (ctx: Context.t): (unit, string) Result.t =
   if Hash_set.mem wfc_memo ctx then
       return ()
   else
-    match ctx with
-    | [Context.Init _] -> return ()
-    | Context.Var (var, ty, cls) :: ctx ->
-      let%bind () = well_formed_context ctx in
-      if (var |> List.mem (Context.domain_var ctx) ~equal:Var.equal) then
-        fail (Printf.sprintf !"Duplicate variable in the context: %{sexp:Context.t}" ctx)
-      else if (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) then
-        fail (Printf.sprintf !"Duplicate variable in the context: %{sexp:Context.t}" ctx)
-      else
-        well_formed_type ctx ty
-    | Context.Lock base :: ctx ->
-      let dom_cls = Context.domain_cls ctx in
-      let%bind () = well_formed_context ctx in
-      Result.ok_if_true
-        (base |> List.mem dom_cls ~equal:Cls.equal)
-        ~error:(Printf.sprintf !"Undefined classifier %{sexp:Cls.t} in %{sexp:Context.t}" base ctx)
-    | Context.Unlock (diff) :: ctx ->
-      let%bind () = well_formed_context ctx in
-      if diff < 0 then
-        fail (Printf.sprintf !"Unlock must carry non-negative diff: %{sexp:Context.t}" ctx)
-      else if diff > (Context.depth ctx) then
-        fail (Printf.sprintf !"Unlock carries too-big diff: %{sexp:Context.t}" ctx)
-      else
-        return ()
-    | Context.Cls (cls, base) :: ctx ->
-      let dom_cls = Context.domain_cls ctx in
-      let%bind () = well_formed_context ctx in
-      if (cls |> List.mem dom_cls ~equal:Cls.equal) then
-        fail (Printf.sprintf !"Duplicate binding classifier %{sexp:Cls.t} in the context: %{sexp:Context.t}" cls ctx)
-      else if not (base |> List.mem dom_cls ~equal:Cls.equal) then
-        fail (Printf.sprintf !"Reference to undefined classifier %{sexp:Cls.t} in the context: %{sexp:Context.t}" base ctx)
-      else
-        return ()
-    | _ -> fail (Printf.sprintf !"Unexpected form of context: %{sexp:Context.t}" ctx)
+    (match ctx with
+     | [Context.Init _] -> return ()
+     | Context.Var (var, ty, cls) :: ctx ->
+       let%bind () = well_formed_context ctx in
+       if (var |> List.mem (Context.domain_var ctx) ~equal:Var.equal) then
+         fail (Printf.sprintf !"Duplicate variable in the context: %{sexp:Context.t}" ctx)
+       else if (cls |> List.mem (Context.domain_cls ctx) ~equal:Cls.equal) then
+         fail (Printf.sprintf !"Duplicate variable in the context: %{sexp:Context.t}" ctx)
+       else
+         well_formed_type ctx ty
+     | Context.Lock base :: ctx ->
+       let dom_cls = Context.domain_cls ctx in
+       let%bind () = well_formed_context ctx in
+       Result.ok_if_true
+         (base |> List.mem dom_cls ~equal:Cls.equal)
+         ~error:(Printf.sprintf !"Undefined classifier %{sexp:Cls.t} in %{sexp:Context.t}" base ctx)
+     | Context.Unlock (diff) :: ctx ->
+       let%bind () = well_formed_context ctx in
+       if diff < 0 then
+         fail (Printf.sprintf !"Unlock must carry non-negative diff: %{sexp:Context.t}" ctx)
+       else if diff > (Context.depth ctx) then
+         fail (Printf.sprintf !"Unlock carries too-big diff: %{sexp:Context.t}" ctx)
+       else
+         return ()
+     | Context.Cls (cls, base) :: ctx ->
+       let dom_cls = Context.domain_cls ctx in
+       let%bind () = well_formed_context ctx in
+       if (cls |> List.mem dom_cls ~equal:Cls.equal) then
+         fail (Printf.sprintf !"Duplicate binding classifier %{sexp:Cls.t} in the context: %{sexp:Context.t}" cls ctx)
+       else if not (base |> List.mem dom_cls ~equal:Cls.equal) then
+         fail (Printf.sprintf !"Reference to undefined classifier %{sexp:Cls.t} in the context: %{sexp:Context.t}" base ctx)
+       else
+         return ()
+     | _ -> fail (Printf.sprintf !"Unexpected form of context: %{sexp:Context.t}" ctx))
 
     >>= fun ans ->
     Hash_set.add wfc_memo ctx;
