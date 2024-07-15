@@ -1,0 +1,11 @@
+let r: ref <int@!> = ref `{@! 0 } in
+
+let x: <int->int@!> = `{@! fun (y:int@g1) ->
+    ~{
+      (* type error at `{@! y }, because y is not available at ! *)
+      let () = (r := `{@! y }) in
+      `{@g1 y }
+    }
+  } in
+
+!r
