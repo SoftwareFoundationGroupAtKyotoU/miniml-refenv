@@ -67,4 +67,9 @@ rule main = parse
      }
 | "_" { Parser.UNDERSCORE }
 | eof { EOF }
-
+| "(*" { comment 0 lexbuf }
+and comment i = parse
+| "*)" { if (i = 0) then main lexbuf else comment (i-1) lexbuf }
+| "(*" { comment (i+1) lexbuf }
+| _ { comment i lexbuf }
+| eof { exit (0) }
