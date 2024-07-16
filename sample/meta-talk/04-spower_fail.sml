@@ -8,7 +8,7 @@ let rec spower_ (n : int)(xq : <int@!>): <int@!> =
 
 let spower(n : int): <int -> int @ !> =
   (* type error at spower_ n `{@g1 x }
-   * because `{@g1 x } has type <int @ g1> while <int @ !> is expected
+   * `{@g1 x } : <int @ g1> while spower_ accepts <int @ !>
    *)
   `{@! fun (x : int @ g1) -> ~{ spower_ n `{@g1 x }}} in
 

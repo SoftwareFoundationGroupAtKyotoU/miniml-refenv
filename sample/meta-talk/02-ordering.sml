@@ -3,6 +3,7 @@ let x : <int@!> = `{@! 1 } in
 `{@!
   (* let introduce a new classifier g
    * and current classifier is g
+   * g -> y : int
    *)
   let y : int @ g = 10 in
 

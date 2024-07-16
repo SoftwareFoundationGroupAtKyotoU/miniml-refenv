@@ -4,7 +4,9 @@ let sqr(x : int) : int @ g1 = x * x in
 (* SPOILER: code types can refer to classifiers of run-time environment *)
 let rec spower_[g2 :> g1](n : int)(xq : <int@g2>) : <int@g2> @ g3 =
   if n == 0 then
-   `{@g2 1 }
+    `{@g2 1 }
+  else if n == 1 then
+    xq
   else if n mod 2 == 1 then
    `{@g2 ~xq * ~{spower_@@g2 (n - 1) xq }}
   else

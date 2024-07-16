@@ -1,4 +1,4 @@
-(* [g:>!]...  introduces a polymorphic classifier g
+(* [g :> !]...  introduces a polymorphic classifier g
  * that has more variables than !
  *)
 let rec spower_ [g :> !](n : int)(xq : <int@g>): <int@g> =

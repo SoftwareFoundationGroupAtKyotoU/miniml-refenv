@@ -1,5 +1,4 @@
-(* spower specializes power function
- *)
+(* spower_ specializes power function *)
 let rec spower_ (n : int)(xq : <int@!>): <int@!> =
   if n == 0 then
     `{@! 1 }
