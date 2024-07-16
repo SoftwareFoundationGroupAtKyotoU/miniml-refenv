@@ -11,3 +11,4 @@ let y : <int@!> = `{@! 2 } in
    type checker can check scope-safety via classifiers
  *)
 `{@! ~x + ~y }
+(* evaluates to `{@! 1 + 2 } *)

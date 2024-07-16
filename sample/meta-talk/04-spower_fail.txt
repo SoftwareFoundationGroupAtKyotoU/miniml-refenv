@@ -10,7 +10,7 @@ let spower(n : int): <int -> int @ !> =
   (* type error at spower_ n `{@g1 x }
    * because `{@g1 x } has type <int @ g1> while <int @ !> is expected
    *)
-  `{@! fun (x : int @ g1) -> ~{ spower_ n `{@g1 x a}}} in
+  `{@! fun (x : int @ g1) -> ~{ spower_ n `{@g1 x }}} in
 
 spower 5
 (* we want

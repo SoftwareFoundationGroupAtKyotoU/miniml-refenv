@@ -7,9 +7,6 @@ let rec spower_ [g :> !](n : int)(xq : <int@g>): <int@g> =
   else if n == 1 then
     xq
   else
-    (* spower_@@g instanciates polymorphic classifier as g
-     * (same classifier in this case)
-     *)
     `{@g ~xq * ~{spower_@@g (n - 1) xq } } in
 
 let spower(n : int): <int -> int @ !> =
