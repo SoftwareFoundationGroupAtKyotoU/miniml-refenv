@@ -339,7 +339,7 @@ let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string
           return ty2
         else
           fail (sprintf !"The quote %{sexp:Term.t} cannot be unquoted because its classifier %{sexp:Cls.t} is not reachable from %{sexp:Cls.t}"
-                  tm base (Context.current ctx))
+                  tm (Context.current ctx) base)
       | _ -> type_error_form quot "code type" inferred)
    | Term.PolyCls (cls, base, body) ->
      (* rename cls to avoid shadowing *)
