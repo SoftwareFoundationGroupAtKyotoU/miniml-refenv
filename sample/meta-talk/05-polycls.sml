@@ -12,6 +12,8 @@ let rec spower_ [g :> !](n : int)(xq : <int@g>): <int@g> =
 let spower(n : int): <int -> int @ !> =
   (* here polymorphic classifier of spower_ is instanciated
    * with new classifier g1. This type-checks because ! <: g1 holds
+   * !  -> empty
+   * g1 -> x : int
    *)
   `{@! fun (x : int @ g1) -> ~{spower_@@g1 n `{@g1 x } } } in
 

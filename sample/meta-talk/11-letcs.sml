@@ -2,7 +2,7 @@
  * It is natural to assume that library functions are shared across stages.
  * `let cs` can provide similar functionality.
  *)
-let cs square(x:int) : int@g1 = x * x in
+let cs sqr(x:int) : int@g1 = x * x in
 
 let rec spower_[g2:>g1](n:int)(xq:<int@g2>) : <int@g2> =
   if n == 0 then
@@ -10,8 +10,8 @@ let rec spower_[g2:>g1](n:int)(xq:<int@g2>) : <int@g2> =
   else if n mod 2 == 1 then
    `{@g2 ~xq * ~{spower_@@g2 (n - 1) xq }}
   else
-   (* Here square is used in future-stage code fragment *)
-   `{@g2 square ~{spower_@@g2 (n / 2) xq} } in
+   (* Here sqr is used in future-stage code fragment *)
+   `{@g2 sqr ~{spower_@@g2 (n / 2) xq} } in
 
 let spower(n:int) : <int->int@g1> =
   `{@g1 fun(x:int@g3) -> ~{spower_@@g3 n `{@g3 x }}} in
@@ -19,13 +19,13 @@ let spower(n:int) : <int->int@g1> =
 spower 5
 (* evaluates to
 
-  `{@g1 fun(x:int) -> x * square (square x) }
+  `{@g1 fun(x:int) -> x * sqr (sqr x) }
 
   and cross-stage definition will be copied over, resulting
 
   `{@!
-      let cs square(x:int) : int@g1 = x * x in
-      fun(x:int) -> x * square (square x)
+      let cs sqr(x:int) : int@g1 = x * x in
+      fun(x:int) -> x * sqr (sqr x)
    }
 
   (* note that classifier has changed from g1 to ! *)
