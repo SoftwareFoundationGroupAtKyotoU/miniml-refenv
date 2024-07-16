@@ -1,3 +1,7 @@
+(* One can safely store code fragments to mutable state
+ * This is famous example of scope extrusion with mutable state
+ *)
+
 let r: ref <int@!> = ref `{@! 0 } in
 
 let x: <int->int@!> = `{@! fun (y:int@g1) ->

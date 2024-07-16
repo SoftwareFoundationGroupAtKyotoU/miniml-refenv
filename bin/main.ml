@@ -23,7 +23,7 @@ let term = (Cui.read_term_from_channel Stdio.In_channel.stdin);;
 let rec loop(tm:Term.t) =
   (match one_iter tm with
    | Evaluator.Value.Code(Term.Quo(cls, body)) when Cls.equal Cls.init cls ->
-     Stdio.print_endline "Going to next stage";
+     Stdio.print_endline "vvvvv Going to next stage vvvvv";
      Stdio.print_endline "";
      loop body
    | _ -> Stdio.print_endline "Fin"

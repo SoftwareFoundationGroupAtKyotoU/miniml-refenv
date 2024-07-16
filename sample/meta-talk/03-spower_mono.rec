@@ -5,4 +5,8 @@ let rec spower_(n:int)(xq:<int@!>): <int@!> =
     xq
   else
     `{@! ~xq * ~{spower_ (n - 1) xq} } in
+
 spower_ 5 `{@! 3 }
+(* will generate
+   `{@! 3 * 3 * 3 * 3 * 3 }
+*)

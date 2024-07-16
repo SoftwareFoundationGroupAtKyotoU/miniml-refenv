@@ -1,4 +1,7 @@
-(* This code demonstrates CSP with run-time evaluation *)
+(* There is another form of CSP what we call cross-stage definitions.
+ * It is natural to assume that library functions are shared across stages.
+ * let cs can provide similar functionality.
+ *)
 
 let cs square(x:int) : int@g1 = x * x in
 
@@ -8,6 +11,7 @@ let rec spower_[g2:>g1](n:int)(xq:<int@g2>) : <int@g2> =
   else if n mod 2 == 1 then
    `{@g2 ~xq * ~{spower_@@g2 (n - 1) xq }}
   else
+   (* Here square is used in future-stage code fragment *)
    `{@g2 square ~{spower_@@g2 (n / 2) xq} } in
 
 let spower(n:int) : <int->int@g1> =
@@ -24,6 +28,6 @@ spower 5
       let cs square(x:int) : int@g1 = x * x in
       fun(x:int) -> x * square (square x)
    }
+
+  (* note that classifier has changed from g1 to ! *)
 *)
-
-

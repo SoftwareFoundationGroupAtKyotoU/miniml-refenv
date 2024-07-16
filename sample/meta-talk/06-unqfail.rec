@@ -1,0 +1,5 @@
+fun [g:>!](x:<int@g>):<int@!> ->
+  (* g <: ! need to hold in order to type-check,
+   * but ! <: g in fact
+   *)
+  `{@! 1 + ~x }
