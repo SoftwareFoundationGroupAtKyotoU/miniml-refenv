@@ -1,4 +1,4 @@
-fun [g:>!](x:<int@g>):<int@!> ->
+fun [g :> !](x:<int@g>) ->
   (* g <: ! need to hold in order to type-check,
    * but ! <: g in fact
    *)

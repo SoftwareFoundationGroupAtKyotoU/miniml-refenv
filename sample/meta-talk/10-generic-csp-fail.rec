@@ -12,7 +12,5 @@ fun (x:int@g) -> `{@g x }
  * --------------------------------------
  *      G |- fun (x:A@g) -> M : A->B
  *
- * The current example fails to type-check because
- * returned code has type <int@g>, which include g,
- * the classifier of the argument
+ * This simple side-condition seems working really well
  *)

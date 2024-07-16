@@ -1,8 +1,7 @@
 (* There is another form of CSP what we call cross-stage definitions.
  * It is natural to assume that library functions are shared across stages.
- * let cs can provide similar functionality.
+ * `let cs` can provide similar functionality.
  *)
-
 let cs square(x:int) : int@g1 = x * x in
 
 let rec spower_[g2:>g1](n:int)(xq:<int@g2>) : <int@g2> =

@@ -12,7 +12,7 @@ let spower(n:int): <int->int@!> =
 (* One can evaluate code at runtime as long as classifiers are consistent.
  * unquote can carry index, how many stages to shift (defaults to 1 if omitted)
  * This case, (spower 5) has type <int@!> and the current classifier is h.
- * hence, this unquote type-checks.
+ * ! <: h and hence this unquote type-checks.
  *)
 
 ~0{ spower 5 } 3

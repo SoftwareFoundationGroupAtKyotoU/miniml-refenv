@@ -1,4 +1,4 @@
-let rec spower_(n:int)(xq:<int@!>): <int@!> =
+let rec spower_ (n : int)(xq : <int@!>): <int@!> =
   if n == 0 then
     `{@! 1 }
   else if n == 1 then
@@ -6,11 +6,11 @@ let rec spower_(n:int)(xq:<int@!>): <int@!> =
   else
     `{@! ~xq * ~{spower_ (n - 1) xq} } in
 
-let spower(n:int): <int->int@!> =
-  (* type error at spower_ n `{@g1 x}
-   * because `{@g1 x} has type <int@g1> while <int@!> is expected
+let spower(n : int): <int -> int @ !> =
+  (* type error at spower_ n `{@g1 x }
+   * because `{@g1 x } has type <int @ g1> while <int @ !> is expected
    *)
-  `{@! fun (x:int@g1) -> ~{spower_ n `{@g1 x}}} in
+  `{@! fun (x : int @ g1) -> ~{ spower_ n `{@g1 x a}}} in
 
 spower 5
 (* we want
