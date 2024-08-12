@@ -2,9 +2,9 @@ open Base
 open Syntax
 open Evalcommon
 
-module Continuation : sig
+module Cont : sig
   type t =
-    (* Continuation that takes run-time values *)
+    (* Continutation that takes run-time values *)
     | BinOpL0 of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpR0 of BinOp.t * Value.t
     | UniOp0 of UniOp.t
@@ -15,6 +15,7 @@ module Continuation : sig
     | Unq0 of int
     | ClsApp0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | Fix0
     (* Continuation that takes future-stage values *)
     | Lamf of Var.t * Cls.t * Typ.t
     | AppLf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
@@ -28,8 +29,8 @@ end
 
 module State : sig
   type t =
-    | EvalTerm of int * Term.t * Value.t RuntimeEnv.t * CodeEnv.t * (Continuation.t list) * Store.t
-    | ApplyCont of int * (Continuation.t list) * Value.t * Store.t
+    | EvalTerm of int * Term.t * Value.t RuntimeEnv.t * CodeEnv.t * (Cont.t list) * Store.t
+    | ApplyCont of int * (Cont.t list) * Value.t * Store.t
   [@@deriving compare, equal, sexp]
 
   val init: Term.t -> t

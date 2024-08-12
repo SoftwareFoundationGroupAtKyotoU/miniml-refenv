@@ -80,8 +80,7 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
          | Clos(renv', cenv', (Lam(self, _, clss, PolyCls(cls, base, body)) as fixed)) ->
            let eta = Value.Clos(renv', cenv', PolyCls(cls, base, AppCls(Fix fixed, cls))) in
            (Clos(((self, clss, eta) :: renv'), cenv', PolyCls(cls, base, body)), store) |> k
-         | _ -> failwith "hogehoge 0 fix"
-       )
+         | _ -> failwith "hogehoge 0 fix")
    | (0, Term.If (cond, thenn, elsee)) ->
      cond |> eval 0 renv cenv store (fun (condv, store) ->
          (match condv with

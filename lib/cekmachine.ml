@@ -2,7 +2,7 @@ open Base
 open Syntax
 open Evalcommon
 
-module Continuation = struct
+module Cont = struct
   type t =
     (* Continuation that takes run-time values *)
     | BinOpL0 of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
@@ -15,6 +15,7 @@ module Continuation = struct
     | Unq0 of int
     | ClsApp0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | Fix0
     (* Continuation that takes future-stage values *)
     | Lamf of Var.t * Cls.t * Typ.t
     | AppLf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
@@ -28,8 +29,8 @@ end
 
 module State = struct
   type t =
-    | EvalTerm of int * Term.t * Value.t RuntimeEnv.t * CodeEnv.t * (Continuation.t list) * Store.t
-    | ApplyCont of int * (Continuation.t list) * Value.t * Store.t
+    | EvalTerm of int * Term.t * Value.t RuntimeEnv.t * CodeEnv.t * (Cont.t list) * Store.t
+    | ApplyCont of int * (Cont.t list) * Value.t * Store.t
   [@@deriving compare, equal, sexp]
 
   let init(tm:Term.t): t = EvalTerm(0, tm, [], [], [], [])
@@ -54,11 +55,11 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.Int i -> InProgress(State.ApplyCont(lv, cont, Value.Int i, store))
          | Term.Bool b -> InProgress(State.ApplyCont(lv, cont, Value.Bool b, store))
          | Term.BinOp (op, arg1, arg2) ->
-           InProgress(State.EvalTerm(lv, arg1, renv, cenv, (Continuation.BinOpL0(op, arg2, renv, cenv))::cont, store))
+           InProgress(State.EvalTerm(lv, arg1, renv, cenv, (Cont.BinOpL0(op, arg2, renv, cenv))::cont, store))
          | Term.UniOp (op, arg) ->
-           InProgress(State.EvalTerm(lv, arg, renv, cenv, (Continuation.UniOp0(op)) :: cont, store))
+           InProgress(State.EvalTerm(lv, arg, renv, cenv, (Cont.UniOp0(op)) :: cont, store))
          | Term.ShortCircuitOp (op, arg1, arg2) ->
-           InProgress(State.EvalTerm(lv, arg1, renv, cenv, (Continuation.ShortCircuitOpL0(op, arg2, renv, cenv)) :: cont, store))
+           InProgress(State.EvalTerm(lv, arg1, renv, cenv, (Cont.ShortCircuitOpL0(op, arg2, renv, cenv)) :: cont, store))
          | Term.Var var ->
            let v = RuntimeEnv.lookup_var var renv in
            InProgress(State.ApplyCont(lv, cont, v, store))
@@ -66,21 +67,22 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
            let v = Value.Clos(renv, cenv, tm) in
            InProgress(State.ApplyCont(lv, cont, v, store))
          | Term.App (func, arg) ->
-           InProgress(State.EvalTerm(lv, func, renv, cenv, (Continuation.AppL0(arg, renv, cenv)) :: cont, store))
+           InProgress(State.EvalTerm(lv, func, renv, cenv, (Cont.AppL0(arg, renv, cenv)) :: cont, store))
          | Term.Quo (cls, body) ->
-           InProgress(State.EvalTerm(lv+1, body, renv, cenv, (Continuation.Quof(CodeEnv.rename_cls cls cenv)) :: cont, store))
+           InProgress(State.EvalTerm(lv+1, body, renv, cenv, (Cont.Quof(CodeEnv.rename_cls cls cenv)) :: cont, store))
          | Term.Unq (0, code) ->
-           InProgress(State.EvalTerm(0, code, renv, cenv, (Continuation.RuntimeEval0(renv, cenv)) :: cont, store))
+           InProgress(State.EvalTerm(0, code, renv, cenv, (Cont.RuntimeEval0(renv, cenv)) :: cont, store))
          | Term.Unq (_, _) -> failwith "Invalid level given to unquote"
          | Term.PolyCls _ ->
            let v = Value.Clos(renv, cenv, tm) in
            InProgress(State.ApplyCont(lv, cont, v, store))
          | Term.AppCls (func, cls) ->
-           InProgress(State.EvalTerm(0, func, renv, cenv, (Continuation.ClsApp0(CodeEnv.rename_cls cls cenv)) :: cont, store))
-         | Term.Fix _ -> failwith "not implemented!"
+           InProgress(State.EvalTerm(0, func, renv, cenv, (Cont.ClsApp0(CodeEnv.rename_cls cls cenv)) :: cont, store))
+         | Term.Fix func ->
+           InProgress(State.EvalTerm(0, func, renv, cenv, Cont.Fix0 :: cont, store))
          | Term.If (cond, thenn, elsee) ->
-           InProgress(State.EvalTerm(0, cond, renv, cenv, (Continuation.IfCond0(thenn, elsee, renv, cenv)) :: cont, store))
-         | Term.Nil -> failwith "not implemented!"
+           InProgress(State.EvalTerm(0, cond, renv, cenv, (Cont.IfCond0(thenn, elsee, renv, cenv)) :: cont, store))
+         | Term.Nil -> InProgress(State.ApplyCont(lv, cont, Value.Nil, store))
          | Term.Ref _ -> failwith "not implemented!"
          | Term.Deref _ -> failwith "not implemented!"
          | Term.Assign (_, _) -> failwith "not implemented!"
@@ -91,15 +93,15 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
       if Int.equal lv 0 then
         (match conts with
          | [] -> Done(v, store)
-         | (Continuation.BinOpL0(op, tm, renv, cenv) :: rest) ->
-           InProgress(State.EvalTerm(lv, tm, renv, cenv, (Continuation.BinOpR0(op, v)) :: rest, store))
-         | (Continuation.BinOpR0(op, v2) :: rest) ->
+         | (Cont.BinOpL0(op, tm, renv, cenv) :: rest) ->
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, (Cont.BinOpR0(op, v)) :: rest, store))
+         | (Cont.BinOpR0(op, v2) :: rest) ->
            let result = Primitives.performBinOp op v2 v in
            InProgress(State.ApplyCont(lv, rest, result, store))
-         | (Continuation.UniOp0(op) :: rest) ->
+         | (Cont.UniOp0(op) :: rest) ->
            let result = Primitives.performUniOp op v in
            InProgress(State.ApplyCont(lv, rest, result, store))
-         | (Continuation.ShortCircuitOpL0(op, argr, renv, cenv) :: rest) ->
+         | (Cont.ShortCircuitOpL0(op, argr, renv, cenv) :: rest) ->
            (match (op, v) with
             | (ShortCircuitOp.And, Value.Bool false) ->
               InProgress(State.ApplyCont(lv, rest, Value.Bool(false), store))
@@ -110,32 +112,43 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
               InProgress(State.EvalTerm(lv, argr, renv, cenv, rest, store))
             | _ -> failwith "Expected Bool"
            )
-         | (Continuation.AppL0(tm, renv, cenv) :: rest) ->
-           InProgress(State.EvalTerm(lv, tm, renv, cenv, (Continuation.AppR0 v) :: rest, store))
-         | (Continuation.AppR0(func) :: rest) ->
+         | (Cont.AppL0(tm, renv, cenv) :: rest) ->
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, (Cont.AppR0 v) :: rest, store))
+         | (Cont.AppR0(func) :: rest) ->
            (match func with
             | Value.Clos(renv1, cenv1, Term.Lam(var, _, ty, body)) ->
               let renv2 = (var, ty, v) :: renv1 in
               InProgress(State.EvalTerm(lv, body, renv2, cenv1, rest, store))
             | _ -> failwith "expected closure")
-         | (Continuation.RuntimeEval0(renv, cenv) :: rest) ->
+         | (Cont.RuntimeEval0(renv, cenv) :: rest) ->
            (match v with
             | Value.Code (Term.Quo(_, body)) ->
               InProgress(State.EvalTerm(lv, body, renv, cenv, rest, store))
             | _ -> failwith "Expected quote")
-         | (Continuation.ClsApp0(cls) :: rest) ->
+         | (Cont.ClsApp0(cls) :: rest) ->
            (match v with
             | Value.Clos (renv, cenv, Term.PolyCls(cls1, _, body)) ->
               let cenv1 = (CodeEnv.Cls(cls1, cls)) :: cenv in
               InProgress(State.EvalTerm(lv, body, renv, cenv1, rest, store))
             | _ -> failwith "expected polycls"
            )
-         | (Continuation.IfCond0(thenn, elsee, renv, cenv) :: rest) ->
+         | (Cont.IfCond0(thenn, elsee, renv, cenv) :: rest) ->
            (match v with
             | (Value.Bool b) ->
               let branch = if b then thenn else elsee in
               InProgress(State.EvalTerm(lv, branch, renv, cenv, rest, store))
             | _ -> failwith "expected boolean")
+         | (Cont.Fix0 :: rest) ->
+           (match v with
+            | Clos(renv1, cenv1, (Lam(self, _, clss, Lam(v, cls, typ, body)) as fixed)) ->
+              let eta = Value.Clos(renv1, cenv1, Lam(v, cls, typ, App(Fix fixed, Var(v)))) in
+              let renv2 = (self, clss, eta) :: renv1 in
+              InProgress(State.ApplyCont(lv, rest, (Value.Clos(renv2, cenv1, Lam(v, cls, typ, body))), store))
+            | Clos(renv1, cenv1, (Lam(self, _, clss, PolyCls(cls, base, body)) as fixed)) ->
+              let eta = Value.Clos(renv1, cenv1, PolyCls(cls, base, AppCls(Fix fixed, cls))) in
+              let renv2 = (self, clss, eta) :: renv1 in
+              InProgress(State.ApplyCont(lv, rest, (Value.Clos(renv2, cenv1, PolyCls(cls, base, body))), store))
+            | _ -> failwith "unexpected form of fix")
          | _ -> failwith "not implemented")
       else
         failwith "not implemented" in
@@ -160,7 +173,12 @@ let%test_module "read term" = (module struct
       ("true"
        |> Cui.read_term
        |> eval_v)
-      ~expect:(Value.Bool true)
+      ~expect:(Value.Bool true);
+    [%test_result: Value.t]
+      ("()"
+       |> Cui.read_term
+       |> eval_v)
+      ~expect:(Value.Nil)
 
   let%test_unit "binary/unary operators" =
     [%test_result: Value.t]
@@ -213,7 +231,6 @@ let%test_module "read term" = (module struct
          |> eval_v)
         ~expect:(Value.Int 1)
 
-
     let%test_unit "lambda redex" =
       [%test_result: Value.t]
         ("let x:int = 1 in x"
@@ -226,20 +243,20 @@ let%test_module "read term" = (module struct
          |> eval_v)
         ~expect:(Value.Int 1)
 
-  end)
+    let%test_unit "recursion" =
+      [%test_result: Value.t]
+        ({|
+       let rec f(x:int):int =
+         if x < 1
+         then 0
+         else x + f(x - 1) in
+       f 10
+      |}
+         |> Cui.read_term
+         |> eval_v)
+        ~expect:(Value.Int 55)
 
-(* let%test_unit "recursion" = *)
-(*   [%test_result: Value.t] *)
-(*     ({| *)
-(*        let rec f(x:int):int = *)
-(*          if x < 1 *)
-(*          then 0 *)
-(*          else x + f(x - 1) in *)
-(*        f 10 *)
-(*       |} *)
-(*      |> Cui.read_term *)
-(*      |> eval_v) *)
-(*     ~expect:(Value.Int 55) *)
+  end)
 
 (* let%test_unit "code generation" = *)
 (*   [%test_result: Value.t] *)
