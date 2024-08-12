@@ -14,7 +14,7 @@ let one_iter(tm:Term.t) =
 
     let v = Evaluator.eval_v tm in
     Stdio.print_endline "evaluated value is:";
-    v |> Evaluator.Value.sexp_of_t |> Stdio.print_s;
+    v |> Evalcommon.Value.sexp_of_t |> Stdio.print_s;
     Stdio.print_endline "";
     v
 
@@ -22,7 +22,7 @@ let term = (Cui.read_term_from_channel Stdio.In_channel.stdin);;
 
 let rec loop(tm:Term.t) =
   (match one_iter tm with
-   | Evaluator.Value.Code(Term.Quo(cls, body)) when Cls.equal Cls.init cls ->
+   | Evalcommon.Value.Code(Term.Quo(cls, body)) when Cls.equal Cls.init cls ->
      Stdio.print_endline "vvvvv Going to next stage vvvvv";
      Stdio.print_endline "";
      loop body

@@ -94,9 +94,9 @@ let%test_unit "nested rename" =
   [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, BaseInt))));
-  [%test_result: Evaluator.Value.t]
+  [%test_result: Evalcommon.Value.t]
     (subject |> Evaluator.eval_v)
-    ~expect:(Evaluator.Value.Code(
+    ~expect:(Evalcommon.Value.Code(
         "`{@! 1 + 1 }"  |> Cui.read_term
       ))
 
@@ -128,9 +128,9 @@ let%test_unit "big test cases" =
   [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
-  [%test_result: Evaluator.Value.t]
+  [%test_result: Evalcommon.Value.t]
     (subject |> Evaluator.eval_v)
-    ~expect:(Evaluator.Value.Code(
+    ~expect:(Evalcommon.Value.Code(
         {|
          `{@!
             fun (x:int) ->
@@ -171,9 +171,9 @@ let%test_unit "big test cases" =
   [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.BaseInt));
-  [%test_result: Evaluator.Value.t]
+  [%test_result: Evalcommon.Value.t]
     (subject |> Evaluator.eval_v)
-    ~expect:(Evaluator.Value.Int(4096))
+    ~expect:(Evalcommon.Value.Int(4096))
 
   let%test_unit "big test cases" =
     let subject = Cui.read_term
@@ -216,9 +216,9 @@ let%test_unit "big test cases" =
   [%test_result: (Typ.t, string) Result.t]
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, Func(BaseInt, BaseInt))))));
-  [%test_result: Evaluator.Value.t]
+  [%test_result: Evalcommon.Value.t]
     (subject |> Evaluator.eval_v)
-    ~expect:(Evaluator.Value.Code(
+    ~expect:(Evalcommon.Value.Code(
         {|
            `{@!
              let rec fib (n:int): int =
