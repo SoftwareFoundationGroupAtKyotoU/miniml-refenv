@@ -17,6 +17,11 @@ module Cont = struct
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | Fix0
     (* Continuation that takes future-stage values *)
+    | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | BinOpRf of BinOp.t * Value.t
+    | UniOpf of UniOp.t
+    | ShortCircuitOpLf of ShortCircuitOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | ShortCircuitOpRf of ShortCircuitOp.t * Value.t
     | Lamf of Var.t * Cls.t * Typ.t
     | AppLf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | AppRf of Value.t
@@ -88,7 +93,34 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.Assign (_, _) -> failwith "not implemented!"
          | Term.Letcs (_, _, _, _, _) -> failwith "not implemented!")
       else
-        failwith "not implemented!"
+        (match tm with
+         | Term.Int i ->
+           InProgress(State.ApplyCont(lv, cont, Value.Fut(Term.Int(i)), store))
+         | Term.Bool b ->
+           InProgress(State.ApplyCont(lv, cont, Value.Fut(Term.Bool(b)), store))
+         | Term.BinOp (op, argl, argr) ->
+           let cont1 = Cont.BinOpLf(op, argr, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, argl, renv, cenv, cont1, store))
+         | Term.UniOp (op, arg) ->
+           let cont1 = Cont.UniOpf(op) :: cont in
+           InProgress(State.EvalTerm(lv, arg, renv, cenv, cont1, store))
+         | Term.ShortCircuitOp (op, argl, argr) ->
+           let cont1 = Cont.ShortCircuitOpLf(op, argr, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, argl, renv, cenv, cont1, store))
+         | Term.Var _ -> _
+         | Term.Lam (_, _, _, _) -> _
+         | Term.App (_, _) -> _
+         | Term.Quo (_, _) -> _
+         | Term.Unq (_, _) -> _
+         | Term.PolyCls (_, _, _) -> _
+         | Term.AppCls (_, _) -> _
+         | Term.Fix _ -> _
+         | Term.If (_, _, _) -> _
+         | Term.Nil -> _
+         | Term.Ref _ -> _
+         | Term.Deref _ -> _
+         | Term.Assign (_, _) -> _
+         | Term.Letcs (_, _, _, _, _) -> _)
     | State.ApplyCont (lv, conts, v, store) ->
       if Int.equal lv 0 then
         (match conts with
@@ -151,7 +183,34 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
             | _ -> failwith "unexpected form of fix")
          | _ -> failwith "not implemented")
       else
-        failwith "not implemented" in
+        (match conts with
+         | (Cont.BinOpLf(op, tm, renv, cenv) :: rest) ->
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, (Cont.BinOpR0(op, v)) :: rest, store))
+         | (Cont.BinOpRf(op, vl) :: rest) ->
+           (match (vl, v) with
+            | (Value.Fut cl, Value.Fut cr) ->
+              let result = Value.Fut(Term.BinOp(op, cl, cr)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values"
+           )
+         | (Cont.UniOpf(op) :: rest) ->
+           (match v with
+            | Value.Fut c ->
+              let result = Value.Fut(Term.UniOp(op, c)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values"
+           )
+         | (Cont.ShortCircuitOpLf(op, argr, renv, cenv) :: rest) ->
+           let cont1 = Cont.ShortCircuitOpRf(op, v) :: rest in
+           InProgress(State.EvalTerm(lv, argr, renv, cenv, cont1, store))
+         | (Cont.ShortCircuitOpRf(op, vl) :: rest) ->
+           (match (vl, v) with
+            | (Value.Fut cl, Value.Fut cr) ->
+              let result = Value.Fut(Term.ShortCircuitOp(op, cl, cr)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values")
+         | _ -> failwith "not implemented"
+        ) in
 
   let rec loop (state: State.t): Value.t * Store.t =
     match step state with

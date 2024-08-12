@@ -17,6 +17,11 @@ module Cont : sig
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | Fix0
     (* Continuation that takes future-stage values *)
+    | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | BinOpRf of BinOp.t * Value.t
+    | UniOpf of UniOp.t
+    | ShortCircuitOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | ShortCircuitOpRf of BinOp.t * Value.t
     | Lamf of Var.t * Cls.t * Typ.t
     | AppLf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | AppRf of Value.t
