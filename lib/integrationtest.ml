@@ -95,7 +95,7 @@ let%test_unit "nested rename" =
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, BaseInt))));
   [%test_result: Evalcommon.Value.t]
-    (subject |> Evaluator.eval_v)
+    (subject |> Cekmachine.eval_v)
     ~expect:(Evalcommon.Value.Code(
         "`{@! 1 + 1 }"  |> Cui.read_term
       ))

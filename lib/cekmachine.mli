@@ -29,6 +29,10 @@ module Cont : sig
     | Unqf of int
     | PolyClsf of Cls.t * Cls.t
     | AppClsf of Cls.t
+    | Fixf
+    | IfCondf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | IfThenf of Value.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | IfElsef of Value.t * Value.t
   [@@deriving compare, equal, sexp]
 end
 
@@ -45,3 +49,5 @@ val run:
   ?debug:bool ->
   State.t ->
   Value.t * Store.t
+
+val eval_v: ?debug:bool -> Term.t -> Value.t

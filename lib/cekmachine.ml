@@ -29,6 +29,10 @@ module Cont = struct
     | Unqf of int
     | PolyClsf of Cls.t * Cls.t
     | AppClsf of Cls.t
+    | Fixf
+    | IfCondf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | IfThenf of Value.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | IfElsef of Value.t * Value.t
   [@@deriving compare, equal, sexp]
 end
 
@@ -142,8 +146,12 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
            let cls = CodeEnv.rename_cls cls cenv in
            let cont1 = Cont.AppClsf cls :: cont in
            InProgress(State.EvalTerm(lv, func, renv, cenv, cont1, store))
-         | Term.Fix _ -> failwith "not implemented"
-         | Term.If (_, _, _) -> failwith "not implemented"
+         | Term.Fix func ->
+           let cont1 = Cont.Fixf :: cont in
+           InProgress(State.EvalTerm(lv, func, renv, cenv, cont1, store))
+         | Term.If (cond, thenn, elsee) ->
+           let cont1 = Cont.IfCondf(thenn, elsee, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, cond, renv, cenv, cont1, store))
          | Term.Nil -> failwith "not implemented"
          | Term.Ref _ -> failwith "not implemented"
          | Term.Deref _ -> failwith "not implemented"
@@ -281,6 +289,24 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
             | (Value.Fut func) ->
               InProgress(State.ApplyCont(lv, rest, Value.Fut(Term.AppCls(func, cls)), store))
             | _ -> failwith "expected future value")
+         | Cont.Fixf :: rest ->
+           (match v with
+            | (Value.Fut func) ->
+              InProgress(State.ApplyCont(lv, rest, Value.Fut(Term.Fix func), store))
+            | _ -> failwith "expected future value"
+           )
+         | Cont.IfCondf(thenn, elsee, renv, cenv) :: rest ->
+           let cont = Cont.IfThenf(v, elsee, renv, cenv) :: rest in
+           InProgress(State.EvalTerm(lv, thenn, renv, cenv, cont, store))
+         | Cont.IfThenf(condv, elsee, renv, cenv) :: rest ->
+           let cont = Cont.IfElsef(condv, v) :: rest in
+           InProgress(State.EvalTerm(lv, elsee, renv, cenv, cont, store))
+         | Cont.IfElsef(condv, thenv) :: rest ->
+           (match (condv, thenv, v) with
+            | (Value.Fut condc, Value.Fut thenc, Value.Fut elsec) ->
+              let result = Value.Fut (Term.If(condc, thenc, elsec)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "not implemented")
          | _ -> failwith "not implemented"
         ) in
 
