@@ -13,22 +13,22 @@ module Cont : sig
     | AppR0 of Value.t
     | RuntimeEval0 of Value.t RuntimeEnv.t * CodeEnv.t
     | Unq0 of int
-    | ClsApp0 of Cls.t
+    | AppCls0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | Fix0
     (* Continuation that takes future-stage values *)
     | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpRf of BinOp.t * Value.t
     | UniOpf of UniOp.t
-    | ShortCircuitOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
-    | ShortCircuitOpRf of BinOp.t * Value.t
-    | Lamf of Var.t * Cls.t * Typ.t
+    | ShortCircuitOpLf of ShortCircuitOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | ShortCircuitOpRf of ShortCircuitOp.t * Value.t
+    | Lamf of Var.t * Typ.t * Cls.t
     | AppLf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | AppRf of Value.t
     | Quof of Cls.t
     | Unqf of int
-    | ClsAbsf of Cls.t * Cls.t
-    | ClsAppf of Cls.t
+    | PolyClsf of Cls.t * Cls.t
+    | AppClsf of Cls.t
   [@@deriving compare, equal, sexp]
 end
 
