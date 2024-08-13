@@ -243,6 +243,13 @@ let type_error (tm: Term.t)(expect: Typ.t)(got: Typ.t): ('a, string) Result.t =
 let type_error_form (tm: Term.t)(expect: string)(got: Typ.t): ('a, string) Result.t =
   Result.fail (Printf.sprintf !"expected %{sexp:Term.t} to have type %s, but got %{sexp:Typ.t}" tm expect got)
 
+let rec is_baseish (ty: Typ.t): bool =
+  (match ty with
+   | Typ.BaseInt -> true
+   | Typ.BaseBool -> true
+   | Typ.Code (_, ty1) -> is_baseish ty1
+   | _ -> false)
+
 let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string) Result.t =
   let open Result in
   let open Result.Let_syntax in
@@ -413,7 +420,9 @@ let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string
        let%bind e1inf = typeinfer false ctx e1 in
        let ctx2 = Context.Var(v, ty, cls) :: ctx in
        let%bind e2inf = typeinfer true ctx2 e2 in
-       if Typ.equal e1inf ty then
+       if not (is_baseish e2inf) then
+         fail (sprintf !"Type of let-cs expression %{sexp:Term.t} must be base-ish, but got %{sexp:Typ.t}" tm e2inf)
+       else if Typ.equal e1inf ty then
          return (e2inf |> Typ.rename_cls cls (Context.current ctx))
        else
          type_error e1 ty e1inf
@@ -645,8 +654,20 @@ let%test_module "typeinfer" = (module struct
            Context.empty
            Term.(Letcs(v1, Typ.BaseInt, g2, Int(10),
                       Letcs(v2, Typ.BaseInt, g3, Int(11), Quo(g3, Var(v2))))))
-        ~expect:(return Typ.(Code(g1, BaseInt)))
-
+        ~expect:(return Typ.(Code(g1, BaseInt)));
+      [%test_result: (Typ.t, string) Result.t]
+        (typeinfer true
+           Context.empty
+           Term.(Letcs(v1, Typ.BaseInt, g2, Int(10),
+                       Quo(g2, Var(v1)))))
+        ~expect:(return Typ.(Code(g1, BaseInt)));
+      [%test_result: bool]
+        (Result.is_error
+           (typeinfer true
+              Context.empty
+              Term.(Letcs(v1, Typ.BaseInt, g2, Int(10),
+                          Lam(v2, BaseInt, g3, Quo(g2, Var(v1)))))))
+        ~expect:true
 
     let%test_unit "shadowing" =
       [%test_result: (Typ.t, string) Result.t]

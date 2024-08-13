@@ -520,6 +520,22 @@ let%test_module "read term" = (module struct
         ~expect:(Value.Code (
             "`{@! fun (y:int@g2) -> 1 + y }" |> Cui.read_term
           ))
+
+    let%test_unit "let cs" =
+      [%test_result: Value.t]
+        ({|
+          let cs sqr(x:int@g) : int = x * x in
+          `{@! sqr 1 }
+        |}
+         |> Cui.read_term
+         |> eval_v)
+        ~expect:(Value.Code (
+            {|
+              `{@! let cs sqr(x:int) : int = x * x in
+                   sqr 1 }
+            |} |> Cui.read_term
+          ))
+
   end)
 
 
