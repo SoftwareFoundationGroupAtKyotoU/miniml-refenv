@@ -38,6 +38,7 @@
 %token FIX
 %token LBRACE RBRACE LBRACKET RBRACKET ATAT
 %token REF ASSIGN
+%token LIFT
 %token EOF
 
 %token GT CLSBOUND
@@ -198,6 +199,11 @@ expr:
       let ftyp = expand_functype $5 $7 in
       let f = Term.(Fix(Lam($4, ftyp, $9, expand_arglist $5 $11))) in
       Term.(Letcs($4, ftyp, $9, f, $13))
+    }
+(* Lift *)
+  | LIFT ATAT referringcls simple_expr
+    {
+      Term.Lift($3, $4)
     }
 
 (* Let expression for unit *)

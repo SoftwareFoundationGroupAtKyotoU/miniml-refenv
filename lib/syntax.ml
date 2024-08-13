@@ -240,6 +240,7 @@ module Term = struct
     | Deref of t
     | Assign of t * t
     | Letcs of Var.t * Typ.t * Cls.t * t * t
+    | Lift of Cls.t * t
   [@@deriving compare, equal, sexp]
 
   let rec rename_var(from:Var.t)(dest:Var.t)(tm:t): t =
@@ -287,6 +288,8 @@ module Term = struct
       if Var.equal from v
       then tm
       else Letcs (v, cls, ty, e1, e2 |> rename_var from dest)
+    | Lift(cls, t) ->
+      Lift(cls, t |> rename_var from dest)
 
   let rec rename_cls(from:Cls.t)(dest:Cls.t)(tm:t): t =
     let apply = Cls.rename_cls from dest in
@@ -339,6 +342,10 @@ module Term = struct
       if Cls.equal from cls
       then Letcs (v, ty2, cls, e1', e2)
       else Letcs (v, ty2, cls, e1', e2 |> rename_cls from dest)
+    | Lift(cls, t) ->
+      if Cls.equal from cls
+      then Lift(dest, t |> rename_cls from dest)
+      else Lift(cls, t |> rename_cls from dest)
 
   let rec equal (a : t)(b : t): bool =
     match (a, b) with
@@ -396,6 +403,8 @@ module Term = struct
       Typ.equal tya tyb
       && equal e1a e1b
       && equal e2a' e2b'
+    | Lift (acls, atm), Lift (bcls, btm) ->
+      Cls.equal acls bcls && equal atm btm
     | _ -> false
 
   let compare (a : t)(b : t): int =

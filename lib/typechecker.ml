@@ -250,6 +250,12 @@ let rec is_baseish (ty: Typ.t): bool =
    | Typ.Code (_, ty1) -> is_baseish ty1
    | _ -> false)
 
+let is_liftable (ty: Typ.t): bool =
+  (match ty with
+   | Typ.BaseInt -> true
+   | Typ.BaseBool -> true
+   | _ -> false)
+
 let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string) Result.t =
   let open Result in
   let open Result.Let_syntax in
@@ -426,6 +432,12 @@ let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string
          return (e2inf |> Typ.rename_cls cls (Context.current ctx))
        else
          type_error e1 ty e1inf
+   | Term.Lift (cls, tm) ->
+     let%bind tminf = typeinfer false ctx tm in
+     if is_liftable tminf then
+       return (Typ.Code(cls, tminf))
+     else
+       fail (sprintf !"Expected a liftable type, but got %{sexp:Typ.t}: %{sexp:Term.t}" tminf tm)
   )
 
 let%test_module "typeinfer" = (module struct

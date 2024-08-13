@@ -18,6 +18,7 @@ module Cont = struct
     | Fix0
     | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
+    | Lift0 of Cls.t
     (* Continuation that takes future-stage values *)
     | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpRf of BinOp.t * Value.t
@@ -37,6 +38,7 @@ module Cont = struct
     | IfElsef of Value.t * Value.t
     | LetcsValf of Var.t * Typ.t * Cls.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBodyf of Var.t * Typ.t * Cls.t * Value.t
+    | Liftf of Cls.t
   [@@deriving compare, equal, sexp]
 end
 
@@ -101,6 +103,9 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.Assign (_, _) -> failwith "not implemented!"
          | Term.Letcs (var, ty, cls, tm, body) ->
            let cont1 = Cont.LetcsVal0(var, ty, cls, tm, body, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, cont1, store))
+         | Term.Lift (cls, tm) ->
+           let cont1 = Cont.Lift0(CodeEnv.rename_cls cls cenv) :: cont in
            InProgress(State.EvalTerm(lv, tm, renv, cenv, cont1, store)))
       else
         (match tm with
@@ -170,6 +175,9 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
            let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
            let cont1 = Cont.LetcsValf(var1, ty1, cls1, body, renv, cenv1) :: cont in
            InProgress(State.EvalTerm(lv, def, renv, cenv, cont1, store))
+         | Term.Lift (cls, tm) ->
+           let cont1 = Cont.Liftf(CodeEnv.rename_cls cls cenv) :: cont in
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, cont1, store))
         )
     | State.ApplyCont (lv, conts, v, store) ->
       if Int.equal lv 0 then
@@ -252,6 +260,15 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
             | Value.Int _ ->
               InProgress(State.ApplyCont(lv, rest, v, store))
             | _ -> failwith "expected code or primitive values ")
+         | Cont.Lift0 cls :: rest->
+           (match v with
+            | Value.Int i ->
+              let result = Value.Code (Term.Quo(cls, Term.Int i)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | Value.Bool b ->
+              let result = Value.Code (Term.Quo(cls, Term.Bool b)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected liftable values")
          | _ -> failwith "not implemented")
       else
         (match conts with
@@ -342,7 +359,14 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
             | (Value.Fut cval, Value.Fut cbody) ->
               let result = Value.Fut (Term.Letcs (var, ty, cls, cval, cbody)) in
               InProgress(State.ApplyCont(lv, rest, result, store))
-            | _ -> failwith "not implemented")
+            | _ -> failwith "expected future values")
+         | Cont.Liftf(cls) :: rest ->
+           (match v with
+            | Value.Fut c ->
+              let result = Value.Fut (Term.Lift(cls, c)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values"
+           )
          | _ -> failwith "not implemented"
         ) in
 
@@ -534,6 +558,26 @@ let%test_module "read term" = (module struct
               `{@! let cs sqr(x:int) : int = x * x in
                    sqr 1 }
             |} |> Cui.read_term
+          ))
+
+    let%test_unit "lift" =
+      [%test_result: Value.t]
+        ({|
+          lift@@! (1 + 1)
+        |}
+         |> Cui.read_term
+         |> eval_v)
+        ~expect:(Value.Code (
+            "`{@! 2 }" |> Cui.read_term
+          ));
+      [%test_result: Value.t]
+        ({|
+          lift@@! (1 < 2)
+        |}
+         |> Cui.read_term
+         |> eval_v)
+        ~expect:(Value.Code (
+            "`{@! true }" |> Cui.read_term
           ))
 
   end)

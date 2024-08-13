@@ -48,10 +48,10 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
    | (0, Term.App (func, arg)) ->
      func |> eval 0 renv cenv store (fun (funcv, store) ->
          arg |> eval 0 renv cenv store (fun (argv, store) ->
-         match funcv with
-         | Clos(renv', cenv', Lam(var, _, cls, body)) ->
-           body |> eval 0 ((var, cls, argv) :: renv') cenv' store k
-         | _ -> failwith "hoge 0 app"))
+             match funcv with
+             | Clos(renv', cenv', Lam(var, _, cls, body)) ->
+               body |> eval 0 ((var, cls, argv) :: renv') cenv' store k
+             | _ -> failwith "hoge 0 app"))
    | (0, Term.Quo (cls, body)) ->
      body |> eval 1 renv cenv store (fun (futv, store) ->
          match futv with
@@ -114,10 +114,10 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
          let renv' = (v, cls, e1v) :: renv in
          e2 |> eval 0 renv' cenv store (fun (e2v, store) ->
              ((match e2v with
-              | Value.Code (Term.Quo (cls2, body)) when (Cls.equal cls cls2) ->
-                Value.Code (Term.Quo (RuntimeEnv.current renv, Letcs(v, ty, cls, e1, body)))
-              | _ -> e2v)
-              , store) |> k))
+                 | Value.Code (Term.Quo (cls2, body)) when (Cls.equal cls cls2) ->
+                   Value.Code (Term.Quo (RuntimeEnv.current renv, Letcs(v, ty, cls, e1, body)))
+                 | _ -> e2v)
+             , store) |> k))
    | (_, Term.Int _) -> (Value.Fut tm, store) |> k
    | (_, Term.Bool _) -> (Value.Fut tm, store) |> k
    | (l, Term.BinOp(op, a, b)) ->
@@ -128,109 +128,110 @@ let rec eval?(debug=false)(lv:int)(renv:Value.t RuntimeEnv.t)(cenv: CodeEnv.t)
                (Value.Fut (Term.BinOp(op, av1, bv1)), store) |> k
              | _ -> failwith "hogehoge 0 binop"))
    | (l, Term.UniOp(op, a)) ->
-       a |> eval l renv cenv store (fun (av, store) ->
-               match av with
-               | Fut av1  ->
-                 (Value.Fut (Term.UniOp(op, av1)), store) |> k
-               | _ -> failwith "hogehoge 0 uniop")
-     | (l, Term.ShortCircuitOp(op, a, b)) ->
-       a |> eval l renv cenv store (fun (av, store) ->
-           b|> eval l renv cenv store (fun (bv, store) ->
-               match (av, bv) with
-               | (Fut av1, Fut bv1) ->
-                 (Value.Fut (Term.ShortCircuitOp(op, av1, bv1)), store) |> k
-               | _ -> failwith "hogehoge 0 shortcircuitop"))
-     | (_, Term.Var v) ->
-       (Value.Fut (Term.Var(cenv |> CodeEnv.rename_var v)), store) |> k
-     | (l, Term.Lam(v, typ, cls, body)) ->
-       let v' = Var.color v in
-       let cls' = Cls.color cls in
-       let typ' = cenv |> CodeEnv.rename_cls_in_typ typ in
-       let cenv' = (CodeEnv.(Var(v, v') :: Cls(cls, cls') :: cenv)) in
-       body |> eval l renv cenv' store (fun (v, store) ->
-           match v with
-           | Fut body' -> (Fut (Lam(v', typ', cls', body')), store) |> k
-           | _ -> failwith "hoge l lam")
-     | (l, Term.App(func, arg)) ->
-       func |> eval l renv cenv store (fun (funcv, store) ->
-           arg |> eval l renv cenv store (fun (argv, store) ->
-               match (funcv, argv) with
-               | (Fut(fbody), Fut(abody)) ->
-                 (Fut(Term.App(fbody, abody)), store) |> k
-               | _ -> failwith "hoge l app"
-             ))
-     | (l, Term.Quo(base, body)) ->
-       body |> eval (l+1) renv cenv store (fun (v, store) ->
-           let base' = cenv |> CodeEnv.rename_cls base in
-           match v with
-           | Fut(v) -> (Fut(Quo(base', v)), store) |> k
-           | _ -> failwith "hoge l quo")
-     | (l, Term.Unq(diff, tm)) ->
-       if Int.equal l diff then
-         tm |> eval 0 renv cenv store (fun (v, store) ->
-             (match v with
-              | Code(Quo(_, body)) -> (Fut(body), store) |> k
-              | _ -> failwith "hoge l=diff unq"))
-       else
-         tm |> eval (l - diff) renv cenv store (fun (v, store) ->
-             (match v with
-              | Fut(body) -> (Fut(Term.Unq(diff, body)), store) |> k
-              | _ -> failwith "hoge l>diff unq"))
-     | (l, Term.PolyCls(cls, base, body)) ->
-       let cls' = Cls.color cls in
-       let base' = cenv |> CodeEnv.rename_cls base in
-       let cenv' = (CodeEnv.(Cls(cls, cls') :: cenv)) in
-       body |> eval l renv cenv' store (fun (v, store) ->
-           match v with
-           | Fut(bodyv) -> (Fut(Term.PolyCls(cls', base', bodyv)), store) |> k
-           | _ -> failwith "hoge l polycls")
-     | (l, Term.AppCls(tm, cls)) ->
-       let cls' = cenv |> CodeEnv.rename_cls cls in
-       tm |> eval l renv cenv store (fun (v, store) ->
-           match v with
-           | Fut body -> (Fut(AppCls(body, cls')), store) |> k
-           | _ -> failwith "hoge l appcls")
-     | (l, Term.Fix(f)) ->
-       f |> eval l renv cenv store (fun (v, store) -> match v with
-           | Fut body -> (Fut(Fix body), store) |> k
-           | _ -> failwith "hoge l fix")
-     | (l, Term.If(cond, thenn, elsee)) ->
-       cond  |> eval l renv cenv store (fun (condv, store) ->
-           thenn |> eval l renv cenv store (fun (thenv, store) ->
-               elsee |> eval l renv cenv store (fun (elsev, store) ->
-                   match (condv, thenv, elsev) with
-                   | (Fut(cbody), Fut(tbody), Fut(ebody)) ->
-                     (Fut(Term.If(cbody, tbody, ebody)), store) |> k
-                   | _ -> failwith "hoge l if"
-                 )))
-     | (_, Term.Nil) -> (Fut Term.Nil, store) |> k
-     | (l, Term.Ref init) ->
-       init |> eval l renv cenv store (fun (v, store) -> match v with
-           | Fut body -> (Fut(Term.Ref body), store) |> k
-           | _ -> failwith "hoge l ref")
-     | (l, Term.Deref loc) ->
-       loc |> eval l renv cenv store (fun (v, store) -> match v with
-           | Fut body -> (Fut(Term.Deref body), store) |> k
-           | _ -> failwith "hoge l deref")
-     | (l, Term.Assign(loc, newv)) ->
-       loc |> eval l renv cenv store (fun (locv, store) ->
-           newv |> eval l renv cenv store (fun (newvv, store) ->
-               match (locv, newvv) with
-               | (Fut locb, Fut newb) -> (Fut(Term.Assign(locb, newb)), store) |> k
-               | _ -> failwith "hoge l assign"))
-     | (l, Term.Letcs(v, ty, cls, e1, e2)) ->
-       e1 |> eval l renv cenv store (fun (e1v, store) ->
-           let v' = Var.color v in
-           let ty' = cenv |> CodeEnv.rename_cls_in_typ ty in
-           let cls' = Cls.color cls in
-           let cenv' = CodeEnv.(Cls(cls, cls') :: Var(v, v') :: cenv) in
-           e2 |> eval l renv cenv' store (fun (e2v, store) ->
-               ((match (e1v, e2v) with
-                   | Value.(Fut e1vbody, Fut e2vbody) ->
-                     Value.Fut(Letcs(v', ty', cls', e1vbody, e2vbody))
-                   | _ -> e2v)
-               , store) |> k
-             )))
+     a |> eval l renv cenv store (fun (av, store) ->
+         match av with
+         | Fut av1  ->
+           (Value.Fut (Term.UniOp(op, av1)), store) |> k
+         | _ -> failwith "hogehoge 0 uniop")
+   | (l, Term.ShortCircuitOp(op, a, b)) ->
+     a |> eval l renv cenv store (fun (av, store) ->
+         b|> eval l renv cenv store (fun (bv, store) ->
+             match (av, bv) with
+             | (Fut av1, Fut bv1) ->
+               (Value.Fut (Term.ShortCircuitOp(op, av1, bv1)), store) |> k
+             | _ -> failwith "hogehoge 0 shortcircuitop"))
+   | (_, Term.Var v) ->
+     (Value.Fut (Term.Var(cenv |> CodeEnv.rename_var v)), store) |> k
+   | (l, Term.Lam(v, typ, cls, body)) ->
+     let v' = Var.color v in
+     let cls' = Cls.color cls in
+     let typ' = cenv |> CodeEnv.rename_cls_in_typ typ in
+     let cenv' = (CodeEnv.(Var(v, v') :: Cls(cls, cls') :: cenv)) in
+     body |> eval l renv cenv' store (fun (v, store) ->
+         match v with
+         | Fut body' -> (Fut (Lam(v', typ', cls', body')), store) |> k
+         | _ -> failwith "hoge l lam")
+   | (l, Term.App(func, arg)) ->
+     func |> eval l renv cenv store (fun (funcv, store) ->
+         arg |> eval l renv cenv store (fun (argv, store) ->
+             match (funcv, argv) with
+             | (Fut(fbody), Fut(abody)) ->
+               (Fut(Term.App(fbody, abody)), store) |> k
+             | _ -> failwith "hoge l app"
+           ))
+   | (l, Term.Quo(base, body)) ->
+     body |> eval (l+1) renv cenv store (fun (v, store) ->
+         let base' = cenv |> CodeEnv.rename_cls base in
+         match v with
+         | Fut(v) -> (Fut(Quo(base', v)), store) |> k
+         | _ -> failwith "hoge l quo")
+   | (l, Term.Unq(diff, tm)) ->
+     if Int.equal l diff then
+       tm |> eval 0 renv cenv store (fun (v, store) ->
+           (match v with
+            | Code(Quo(_, body)) -> (Fut(body), store) |> k
+            | _ -> failwith "hoge l=diff unq"))
+     else
+       tm |> eval (l - diff) renv cenv store (fun (v, store) ->
+           (match v with
+            | Fut(body) -> (Fut(Term.Unq(diff, body)), store) |> k
+            | _ -> failwith "hoge l>diff unq"))
+   | (l, Term.PolyCls(cls, base, body)) ->
+     let cls' = Cls.color cls in
+     let base' = cenv |> CodeEnv.rename_cls base in
+     let cenv' = (CodeEnv.(Cls(cls, cls') :: cenv)) in
+     body |> eval l renv cenv' store (fun (v, store) ->
+         match v with
+         | Fut(bodyv) -> (Fut(Term.PolyCls(cls', base', bodyv)), store) |> k
+         | _ -> failwith "hoge l polycls")
+   | (l, Term.AppCls(tm, cls)) ->
+     let cls' = cenv |> CodeEnv.rename_cls cls in
+     tm |> eval l renv cenv store (fun (v, store) ->
+         match v with
+         | Fut body -> (Fut(AppCls(body, cls')), store) |> k
+         | _ -> failwith "hoge l appcls")
+   | (l, Term.Fix(f)) ->
+     f |> eval l renv cenv store (fun (v, store) -> match v with
+         | Fut body -> (Fut(Fix body), store) |> k
+         | _ -> failwith "hoge l fix")
+   | (l, Term.If(cond, thenn, elsee)) ->
+     cond  |> eval l renv cenv store (fun (condv, store) ->
+         thenn |> eval l renv cenv store (fun (thenv, store) ->
+             elsee |> eval l renv cenv store (fun (elsev, store) ->
+                 match (condv, thenv, elsev) with
+                 | (Fut(cbody), Fut(tbody), Fut(ebody)) ->
+                   (Fut(Term.If(cbody, tbody, ebody)), store) |> k
+                 | _ -> failwith "hoge l if"
+               )))
+   | (_, Term.Nil) -> (Fut Term.Nil, store) |> k
+   | (l, Term.Ref init) ->
+     init |> eval l renv cenv store (fun (v, store) -> match v with
+         | Fut body -> (Fut(Term.Ref body), store) |> k
+         | _ -> failwith "hoge l ref")
+   | (l, Term.Deref loc) ->
+     loc |> eval l renv cenv store (fun (v, store) -> match v with
+         | Fut body -> (Fut(Term.Deref body), store) |> k
+         | _ -> failwith "hoge l deref")
+   | (l, Term.Assign(loc, newv)) ->
+     loc |> eval l renv cenv store (fun (locv, store) ->
+         newv |> eval l renv cenv store (fun (newvv, store) ->
+             match (locv, newvv) with
+             | (Fut locb, Fut newb) -> (Fut(Term.Assign(locb, newb)), store) |> k
+             | _ -> failwith "hoge l assign"))
+   | (l, Term.Letcs(v, ty, cls, e1, e2)) ->
+     e1 |> eval l renv cenv store (fun (e1v, store) ->
+         let v' = Var.color v in
+         let ty' = cenv |> CodeEnv.rename_cls_in_typ ty in
+         let cls' = Cls.color cls in
+         let cenv' = CodeEnv.(Cls(cls, cls') :: Var(v, v') :: cenv) in
+         e2 |> eval l renv cenv' store (fun (e2v, store) ->
+             ((match (e1v, e2v) with
+                 | Value.(Fut e1vbody, Fut e2vbody) ->
+                   Value.Fut(Letcs(v', ty', cls', e1vbody, e2vbody))
+                 | _ -> e2v)
+             , store) |> k
+           ))
+   | (_, Term.Lift _) -> failwith "unsupported")
 
 let eval_v ?(debug=false) tm =
   let (v, _) = tm |> eval ~debug:debug 0 [] [] [] (fun x -> x) in

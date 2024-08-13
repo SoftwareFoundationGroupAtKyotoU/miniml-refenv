@@ -16,7 +16,8 @@ let reservedWords = [
   ("bool", Parser.BASEBOOL);
   ("mod", Parser.MOD);
   ("ref", Parser.REF);
-  ("unit", Parser.UNIT)
+  ("unit", Parser.UNIT);
+  ("lift", Parser.LIFT)
 ]
 }
 

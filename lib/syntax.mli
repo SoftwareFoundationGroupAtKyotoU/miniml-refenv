@@ -89,6 +89,7 @@ module Term: sig
     | Deref of t
     | Assign of t * t
     | Letcs of Var.t * Typ.t * Cls.t * t * t
+    | Lift of Cls.t * t
   [@@deriving sexp]
 
   val equal: t -> t -> bool
