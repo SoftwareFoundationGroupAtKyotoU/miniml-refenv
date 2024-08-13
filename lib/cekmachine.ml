@@ -16,6 +16,8 @@ module Cont = struct
     | AppCls0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | Fix0
+    | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
     (* Continuation that takes future-stage values *)
     | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpRf of BinOp.t * Value.t
@@ -33,6 +35,8 @@ module Cont = struct
     | IfCondf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfThenf of Value.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfElsef of Value.t * Value.t
+    | LetcsValf of Var.t * Typ.t * Cls.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | LetcsBodyf of Var.t * Typ.t * Cls.t * Value.t
   [@@deriving compare, equal, sexp]
 end
 
@@ -95,7 +99,9 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.Ref _ -> failwith "not implemented!"
          | Term.Deref _ -> failwith "not implemented!"
          | Term.Assign (_, _) -> failwith "not implemented!"
-         | Term.Letcs (_, _, _, _, _) -> failwith "not implemented!")
+         | Term.Letcs (var, ty, cls, tm, body) ->
+           let cont1 = Cont.LetcsVal0(var, ty, cls, tm, body, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, tm, renv, cenv, cont1, store)))
       else
         (match tm with
          | Term.Int i ->
@@ -119,7 +125,6 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
            let cls1 = Cls.color cls in
            let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
            let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
-           (* Seems we wanna rename cls in ty *)
            let cont1 = Cont.Lamf(var1, ty1, cls1) :: cont in
            InProgress(State.EvalTerm(lv, body, renv, cenv1, cont1, store))
          | Term.App (func, arg) ->
@@ -152,11 +157,19 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.If (cond, thenn, elsee) ->
            let cont1 = Cont.IfCondf(thenn, elsee, renv, cenv) :: cont in
            InProgress(State.EvalTerm(lv, cond, renv, cenv, cont1, store))
-         | Term.Nil -> failwith "not implemented"
+         | Term.Nil ->
+           let result = Value.Fut Term.Nil in
+           InProgress(State.ApplyCont(lv, cont, result, store))
          | Term.Ref _ -> failwith "not implemented"
          | Term.Deref _ -> failwith "not implemented"
          | Term.Assign (_, _) -> failwith "not implemented"
-         | Term.Letcs (_, _, _, _, _) -> failwith "not implemented"
+         | Term.Letcs (var, ty, cls, def, body) ->
+           let var1 = Var.color var in
+           let cls1 = Cls.color cls in
+           let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
+           let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
+           let cont1 = Cont.LetcsValf(var1, ty1, cls1, body, renv, cenv1) :: cont in
+           InProgress(State.EvalTerm(lv, def, renv, cenv, cont1, store))
         )
     | State.ApplyCont (lv, conts, v, store) ->
       if Int.equal lv 0 then
@@ -225,6 +238,20 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
               let renv2 = (self, clss, eta) :: renv1 in
               InProgress(State.ApplyCont(lv, rest, (Value.Clos(renv2, cenv1, PolyCls(cls, base, body))), store))
             | _ -> failwith "unexpected form of fix")
+         | Cont.LetcsVal0(var, ty, cls, def, body, renv, cenv) :: rest ->
+           let cont1 = Cont.LetcsBody0(var, ty, cls, def, RuntimeEnv.current renv) :: rest in
+           let renv1 = (var, cls, v) :: renv in
+           InProgress(State.EvalTerm(lv, body, renv1, cenv, cont1, store))
+         | Cont.LetcsBody0(var, ty, cls, def, current_cls) :: rest ->
+           (match v with
+            | Value.Code Term.Quo(_, body) ->
+              let result = Value.Code(Term.Quo(current_cls, Term.Letcs(var, ty, cls, def, body))) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | Value.Nil
+            | Value.Bool _
+            | Value.Int _ ->
+              InProgress(State.ApplyCont(lv, rest, v, store))
+            | _ -> failwith "expected code or primitive values ")
          | _ -> failwith "not implemented")
       else
         (match conts with
@@ -305,6 +332,15 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
            (match (condv, thenv, v) with
             | (Value.Fut condc, Value.Fut thenc, Value.Fut elsec) ->
               let result = Value.Fut (Term.If(condc, thenc, elsec)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "not implemented")
+         | Cont.LetcsValf(var, ty, cls, body, renv, cenv) :: rest ->
+           let cont1 = Cont.LetcsBodyf(var, ty, cls, v) :: rest in
+           InProgress(State.EvalTerm(lv, body, renv, cenv, cont1, store))
+         | Cont.LetcsBodyf(var, ty, cls, vval) :: rest ->
+           (match (vval, v) with
+            | (Value.Fut cval, Value.Fut cbody) ->
+              let result = Value.Fut (Term.Letcs (var, ty, cls, cval, cbody)) in
               InProgress(State.ApplyCont(lv, rest, result, store))
             | _ -> failwith "not implemented")
          | _ -> failwith "not implemented"
