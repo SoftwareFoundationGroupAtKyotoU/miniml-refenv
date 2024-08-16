@@ -82,7 +82,7 @@ module Term: sig
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
-    | Fix of t
+    | Fix of Var.t * Typ.t * Cls.t * t
     | If of t * t * t
     | Nil
     | Ref of t

@@ -15,7 +15,6 @@ module Cont = struct
     | Unq0 of int
     | AppCls0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
-    | Fix0
     | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
     | Lift0 of Cls.t
@@ -39,7 +38,7 @@ module Cont = struct
     | Unqf of int
     | PolyClsf of Cls.t * Cls.t
     | AppClsf of Cls.t
-    | Fixf
+    | Fixf of Var.t * Typ.t * Cls.t
     | IfCondf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfThenf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfElsef of Term.t * Term.t
@@ -75,6 +74,23 @@ type stepResult =
 let describe (state: Config.t): unit =
   Printf.sprintf !"State: %{sexp:Config.t}" state
   |> Stdio.print_endline
+
+let expand_eta (tm: Term.t)(ty: Typ.t): Term.t =
+  (match ty with
+   | Func(targ, _) ->
+     (match tm with
+      | Lam _ -> tm
+      | _ ->
+        let var = Var.gen () in
+        let cls = Cls.gen () in
+        Term.(Lam(var, targ, cls, App(tm, Var(var)))))
+   | PolyCls(_, base, _) ->
+     (match tm with
+      | PolyCls _ -> tm
+      | _ ->
+        let cls = Cls.gen () in
+        Term.(PolyCls(cls, base, AppCls(tm, cls))))
+   | _ -> failwith "Eta expansion works only for functions and polymorphic classifiers")
 
 let run ?(debug=false) (state: Config.t): Value.t * Store.t =
   let step (state: Config.t): stepResult =
@@ -117,9 +133,13 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
          | Term.AppCls (func, cls) ->
            let conts1 = Cont.(Runtime(AppCls0(CodeEnv.rename_cls cls cenv))) :: conts in
            InProgress(Config.EvalTerm(0, func, renv, cenv, conts1, store))
-         | Term.Fix func ->
-           let conts1 = Cont.(Runtime(Fix0)) :: conts in
-           InProgress(Config.EvalTerm(0, func, renv, cenv, conts1, store))
+         | Term.Fix (self, tys, clss, func) ->
+           (match tys with
+            | Func _
+            | PolyCls _ ->
+              let renv1 = (self, clss, Value.Clos(renv, cenv, expand_eta tm tys)) :: renv in
+              InProgress(Config.EvalTerm(0, func, renv1, cenv, conts, store))
+            | _ -> failwith "Unexpected type for fixpoint")
          | Term.If (cond, thenn, elsee) ->
            let conts1 = Cont.(Runtime(IfCond0(thenn, elsee, renv, cenv))) :: conts in
            InProgress(Config.EvalTerm(0, cond, renv, cenv, conts1, store))
@@ -189,9 +209,13 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
            let cls = CodeEnv.rename_cls cls cenv in
            let conts1 = Cont.(Future(AppClsf cls)) :: conts in
            InProgress(Config.EvalTerm(lv, func, renv, cenv, conts1, store))
-         | Term.Fix func ->
-           let conts1 = Cont.(Future(Fixf)) :: conts in
-           InProgress(Config.EvalTerm(lv, func, renv, cenv, conts1, store))
+         | Term.Fix (var, ty, cls, func) ->
+           let var1 = Var.color var in
+           let cls1 = Cls.color cls in
+           let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
+           let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
+           let conts1 = Cont.(Future(Fixf(var1, ty1, cls1))) :: conts in
+           InProgress(Config.EvalTerm(lv, func, renv, cenv1, conts1, store))
          | Term.If (cond, thenn, elsee) ->
            let conts1 = Cont.(Future(IfCondf(thenn, elsee, renv, cenv))) :: conts in
            InProgress(Config.EvalTerm(lv, cond, renv, cenv, conts1, store))
@@ -277,17 +301,6 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
                let branch = if b then thenn else elsee in
                InProgress(Config.EvalTerm(0, branch, renv, cenv, rest, store))
              | _ -> failwith "expected boolean")
-          | Cont.Fix0 ->
-            (match v with
-             | Clos(renv1, cenv1, (Lam(self, _, clss, Lam(v, cls, typ, body)) as fixed)) ->
-               let eta = Value.Clos(renv1, cenv1, Lam(v, cls, typ, App(Fix fixed, Var(v)))) in
-               let renv2 = (self, clss, eta) :: renv1 in
-               InProgress(Config.ApplyCont0(rest, (Value.Clos(renv2, cenv1, Lam(v, cls, typ, body))), store))
-             | Clos(renv1, cenv1, (Lam(self, _, clss, PolyCls(cls, base, body)) as fixed)) ->
-               let eta = Value.Clos(renv1, cenv1, PolyCls(cls, base, AppCls(Fix fixed, cls))) in
-               let renv2 = (self, clss, eta) :: renv1 in
-               InProgress(Config.ApplyCont0(rest, (Value.Clos(renv2, cenv1, PolyCls(cls, base, body))), store))
-             | _ -> failwith "unexpected form of fix")
           | Cont.LetcsVal0(var, ty, cls, def, body, renv, cenv) ->
             let conts1 = Cont.(Runtime(LetcsBody0(var, ty, cls, def, RuntimeEnv.current renv))) :: rest in
             let renv1 = (var, cls, v) :: renv in
@@ -377,8 +390,8 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
           | Cont.AppClsf(cls) ->
             let result = Term.AppCls(v, cls) in
             InProgress(Config.ApplyContf(lv, rest, result, store))
-          | Cont.Fixf ->
-            let result = Term.Fix v in
+          | Cont.Fixf(var, ty, cls) ->
+            let result = Term.Fix(var, ty, cls, v) in
             InProgress(Config.ApplyContf(lv, rest, result, store))
           | Cont.IfCondf(thenn, elsee, renv, cenv) ->
             let conts1 = Cont.(Future(IfThenf(v, elsee, renv, cenv))) :: rest in

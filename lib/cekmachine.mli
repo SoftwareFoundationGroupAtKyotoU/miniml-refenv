@@ -15,7 +15,6 @@ module Cont : sig
     | Unq0 of int
     | AppCls0 of Cls.t
     | IfCond0 of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
-    | Fix0
     | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
     | Lift0 of Cls.t
@@ -39,7 +38,7 @@ module Cont : sig
     | Unqf of int
     | PolyClsf of Cls.t * Cls.t
     | AppClsf of Cls.t
-    | Fixf
+    | Fixf of Var.t * Typ.t * Cls.t
     | IfCondf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfThenf of Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | IfElsef of Term.t * Term.t

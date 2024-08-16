@@ -162,14 +162,14 @@ expr:
       let f = expand_arglist $4 $8 in
       let ftyp = expand_functype $4 $6 in
       Term.(App(Lam($3, ftyp, Cls.gen(), $10),
-            Fix(Lam($3, ftyp, Cls.gen(), f))))
+            Fix($3, ftyp, Cls.gen(), f)))
     }
   | LET REC bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
       let f = expand_arglist $4 $10 in
       let ftyp = expand_functype $4 $6 in
       Term.(App(Lam($3, ftyp, $8, $12),
-            Fix(Lam($3, ftyp, $8, f))))
+            Fix($3, ftyp, $8, f)))
     }
 (* Cross-stage definition *)
   | LET CS bindingvar COLON typ EQ expr IN expr %prec prec_let
@@ -191,13 +191,13 @@ expr:
   | LET REC CS bindingvar arglist COLON typ EQ expr IN expr %prec prec_let
     {
       let ftyp = expand_functype $5 $7 in
-      let f = Term.(Fix(Lam($4, ftyp, Cls.gen(), expand_arglist $5 $9))) in
+      let f = Term.(Fix($4, ftyp, Cls.gen(), expand_arglist $5 $9)) in
       Term.(Letcs($4, ftyp, Cls.gen(), f, $11))
     }
   | LET REC CS bindingvar arglist COLON typ AT referringcls EQ expr IN expr %prec prec_let
     {
       let ftyp = expand_functype $5 $7 in
-      let f = Term.(Fix(Lam($4, ftyp, $9, expand_arglist $5 $11))) in
+      let f = Term.(Fix($4, ftyp, $9, expand_arglist $5 $11)) in
       Term.(Letcs($4, ftyp, $9, f, $13))
     }
 (* Lift *)

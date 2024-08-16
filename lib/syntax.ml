@@ -233,7 +233,7 @@ module Term = struct
     | Unq of int * t
     | PolyCls of Cls.t * Cls.t * t
     | AppCls of t * Cls.t
-    | Fix of t
+    | Fix of Var.t * Typ.t * Cls.t * t
     | If of t * t * t
     | Nil
     | Ref of t
@@ -274,7 +274,10 @@ module Term = struct
       PolyCls (cls, base, body |> rename_var from dest)
     | AppCls (tm, cls) ->
       AppCls (tm |> rename_var from dest, cls)
-    | Fix f -> Fix (f |> rename_var from dest)
+    | Fix (v, typ, cls, body) ->
+      if Var.equal from v
+      then tm
+      else Fix(v, typ, cls, body |> rename_var from dest)
     | If (cond, thenn, elsee) ->
       If (cond |> rename_var from dest,
           thenn |> rename_var from dest,
@@ -326,7 +329,11 @@ module Term = struct
       else PolyCls (cls, apply base, body |> rename_cls from dest)
     | AppCls (tm, cls) ->
       AppCls (tm |> rename_cls from dest, apply cls)
-    | Fix f -> Fix (f |> rename_cls from dest)
+    | Fix (v, ty, cls, body) ->
+      let ty2 = ty |> Typ.rename_cls from dest in
+      if Cls.equal from cls
+      then Fix(v, ty2, cls, body)
+      else Fix(v, ty2, cls, body |> rename_cls from dest)
     | If (cond, thenn, elsee) ->
       If (cond |> rename_cls from dest,
           thenn |> rename_cls from dest,
@@ -386,8 +393,12 @@ module Term = struct
       Cls.equal abase bbase && equal abody' bbody'
     | (AppCls (atm, abase), AppCls (btm, bbase)) ->
       equal atm btm && Cls.equal abase bbase
-    | (Fix af, Fix bf) ->
-      equal af bf
+    | (Fix (av, aty, acls, abody), Fix(bv, bty, bcls, bbody)) ->
+      let v' = Var.gen () in
+      let cls' = Cls.gen () in
+      let abody' = abody |> rename_var av v' |> rename_cls acls cls' in
+      let bbody' = bbody |> rename_var bv v' |> rename_cls bcls cls' in
+      Typ.equal aty bty && equal abody' bbody'
     | (If (acond, athen, aelse), If (bcond, bthen, belse)) ->
       equal acond bcond && equal athen bthen && equal aelse belse
     | Nil, Nil -> true

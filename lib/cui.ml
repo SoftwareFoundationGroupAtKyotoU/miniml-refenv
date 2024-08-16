@@ -220,8 +220,8 @@ let%test_module "read term" = (module struct
       |})
       ~expect:Term.(App(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
                             App(Var(f), Int(0))),
-                        Fix(Lam(f, Typ.(Func(BaseInt, BaseInt)), g1,
-                                Lam(x, BaseInt, g2, App(Var(f), Var(x)))))))
+                        Fix(f, Typ.(Func(BaseInt, BaseInt)), g1,
+                                Lam(x, BaseInt, g2, App(Var(f), Var(x))))))
 
   let%test_unit "let cs syntax" =
     [%test_result: Term.t]

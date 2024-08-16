@@ -374,24 +374,24 @@ let rec typeinfer (toplevel: bool) (ctx: Context.t) (tm: Term.t): (Typ.t, string
         | _ -> type_error_form quot "polymorphic classifier type" inferred)
      else
        fail (sprintf !"The term %{sexp:Term.t} uses an undefined classifier %{sexp:Cls.t}" tm cls)
-   | Term.Fix (term) ->
-     let%bind inferred = typeinfer false ctx term in
-     (* Since this is call-by-value language, we want to restrict term to
-        functions or classifier-functions
-     *)
-     (match inferred with
-      | Typ.(Func(Func(targ1, tret1), Func(targ2, tret2))) ->
-        if (Typ.equal targ1 targ2 && Typ.equal tret1 tret2) then
-          return (Typ.Func(targ1, tret1))
-        else
-          type_error_form tm "Func(Func(a, b), Func(a, b))" inferred
-      | Typ.(Func(PolyCls(cls1, base1, tret1), PolyCls(cls2, base2, tret2))) ->
-        if (Typ.equal (PolyCls(cls1, base1, tret1)) (PolyCls(cls2, base2, tret2))) then
-          return (Typ.PolyCls(cls1, base1, tret1))
-        else
-          type_error_form tm "Func(PolyCls(g1, g2, a), PolyCls(g1, g2, a))" inferred
-      | _ -> type_error_form tm "Func(Func(a, b), Func(a, b)) or Func(PolyCls(g1, g2, a), PolyCls(g1, g2, a))" inferred
-     )
+   | Term.Fix (v, ty, cls, body) ->
+     (* rename v and cls to fresh identifiers to avoid shadowing *)
+     let v' = Var.color v in
+     let cls' = Cls.color cls in
+     let body' = body
+                 |> Term.rename_var v v'
+                 |> Term.rename_cls cls cls' in
+     let ctx2 = Context.Var(v', ty, cls') :: ctx in
+     let%bind inferred = typeinfer false ctx2 body' in
+     if Typ.equal inferred ty then
+       (match ty with
+        | Func _
+        | PolyCls _ ->
+          return ty
+        | _ ->
+          fail (sprintf !"Fixpoint only accepts function or polycls: %{sexp:Term.t}" tm))
+     else
+       fail (sprintf !"Mismatch types of fixpoint: %{sexp:Term.t}" tm)
    | Term.If(cond, thenn, elsee) ->
      let%bind tycond = typeinfer false ctx cond in
      let%bind tythen = typeinfer false ctx thenn in
@@ -576,25 +576,25 @@ let%test_module "typeinfer" = (module struct
     [%test_result: (Typ.t, string) Result.t]
       (typeinfer true
          Context.(from [Var(v1, BaseInt, g2)])
-         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
-                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
+         Term.(Fix(v2, Func(BaseInt, BaseInt), g3,
+                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3))))))
       ~expect:(return Typ.(Func(BaseInt, BaseInt)));
     [%test_result: (Typ.t, string) Result.t]
       (typeinfer true
          Context.(from [Var(v1, BaseInt, g2)])
-         Term.(Fix(Lam(v2, Func(BaseInt, BaseInt), g3,
-                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3)))))))
+         Term.(Fix(v2, Func(BaseInt, BaseInt), g3,
+                       Lam(v3, BaseInt, g4, App(Var(v2), Var(v3))))))
       ~expect:(return Typ.(Func(BaseInt, BaseInt)));
     [%test_result: (Typ.t, string) Result.t]
       (typeinfer true
          Context.(from [Var(v1, BaseInt, g2)])
-         Term.(Fix(Lam(v2, PolyCls(g3, g2, BaseInt), g4,
-                       PolyCls(g5, g2, Var(v1))))))
+         Term.(Fix(v2, PolyCls(g3, g2, BaseInt), g4,
+                       PolyCls(g5, g2, Var(v1)))))
       ~expect:(return Typ.(PolyCls(g6, g2, BaseInt)));
     (assert (is_error
       (typeinfer true
          Context.empty
-         Term.(Fix(Lam(v1, BaseInt, g1, Var(v1)))))))
+         Term.(Fix(v1, BaseInt, g1, Var(v1))))))
 
     let%test_unit "if-statement" =
       [%test_result: (Typ.t, string) Result.t]
