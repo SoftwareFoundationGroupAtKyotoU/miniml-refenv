@@ -87,7 +87,6 @@ module Value = struct
     | Bool of bool
     | Clos of t RuntimeEnv.t * CodeEnv.t * Term.t
     | Code of Term.t
-    | Fut of Term.t
     | Loc of Loc.t
     | Nil
   [@@deriving compare, equal, sexp]

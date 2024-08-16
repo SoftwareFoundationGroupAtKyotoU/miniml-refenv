@@ -37,8 +37,9 @@ module Value : sig
     | Int of int
     | Bool of bool
     | Clos of t RuntimeEnv.t * CodeEnv.t * Term.t
+    (* term must be either Lam or PolyCls *)
     | Code of Term.t
-    | Fut of Term.t
+    (* term must be Quo *)
     | Loc of Loc.t
     | Nil
   [@@deriving compare, equal, sexp]

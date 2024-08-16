@@ -129,7 +129,7 @@ let%test_unit "big test cases" =
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, BaseInt)))));
   [%test_result: Evalcommon.Value.t]
-    (subject |> Evaluator.eval_v)
+    (subject |> Cekmachine.eval_v)
     ~expect:(Evalcommon.Value.Code(
         {|
          `{@!
@@ -172,7 +172,7 @@ let%test_unit "big test cases" =
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.BaseInt));
   [%test_result: Evalcommon.Value.t]
-    (subject |> Evaluator.eval_v)
+    (subject |> Cekmachine.eval_v)
     ~expect:(Evalcommon.Value.Int(4096))
 
   let%test_unit "big test cases" =
@@ -217,7 +217,7 @@ let%test_unit "big test cases" =
     (subject |> Typechecker.typeinfer true Context.empty)
     ~expect:(return (Typ.(Code(Cls.init, Func(BaseInt, Func(BaseInt, BaseInt))))));
   [%test_result: Evalcommon.Value.t]
-    (subject |> Evaluator.eval_v)
+    (subject |> Cekmachine.eval_v)
     ~expect:(Evalcommon.Value.Code(
         {|
            `{@!
