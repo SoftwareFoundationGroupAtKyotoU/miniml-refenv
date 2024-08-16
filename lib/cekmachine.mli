@@ -50,7 +50,7 @@ module Cont : sig
   [@@deriving compare, equal, sexp]
 end
 
-module State : sig
+module Config : sig
   type t =
     | EvalTerm of int * Term.t * Value.t RuntimeEnv.t * CodeEnv.t * (Cont.t list) * Store.t
     | ApplyCont of int * (Cont.t list) * Value.t * Store.t
@@ -61,7 +61,7 @@ end
 
 val run:
   ?debug:bool ->
-  State.t ->
+  Config.t ->
   Value.t * Store.t
 
 val eval_v: ?debug:bool -> Term.t -> Value.t
