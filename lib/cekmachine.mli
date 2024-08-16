@@ -19,6 +19,10 @@ module Cont : sig
     | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
     | Lift0 of Cls.t
+    | Ref0
+    | Deref0
+    | AssignDest0 of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | AssignNewVal0 of Value.t
     (* Continuation that takes future-stage values *)
     | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpRf of BinOp.t * Value.t
@@ -39,6 +43,10 @@ module Cont : sig
     | LetcsValf of Var.t * Typ.t * Cls.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBodyf of Var.t * Typ.t * Cls.t * Value.t
     | Liftf of Cls.t
+    | Reff
+    | Dereff
+    | AssignDestf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | AssignNewValf of Value.t
   [@@deriving compare, equal, sexp]
 end
 

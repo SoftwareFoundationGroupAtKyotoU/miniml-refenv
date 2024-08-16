@@ -19,6 +19,10 @@ module Cont = struct
     | LetcsVal0 of Var.t * Typ.t * Cls.t * Term.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBody0 of Var.t * Typ.t * Cls.t * Term.t * Cls.t
     | Lift0 of Cls.t
+    | Ref0
+    | Deref0
+    | AssignDest0 of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | AssignNewVal0 of Value.t
     (* Continuation that takes future-stage values *)
     | BinOpLf of BinOp.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | BinOpRf of BinOp.t * Value.t
@@ -39,6 +43,10 @@ module Cont = struct
     | LetcsValf of Var.t * Typ.t * Cls.t * Term.t * Value.t RuntimeEnv.t * CodeEnv.t
     | LetcsBodyf of Var.t * Typ.t * Cls.t * Value.t
     | Liftf of Cls.t
+    | Reff
+    | Dereff
+    | AssignDestf of Term.t * Value.t RuntimeEnv.t * CodeEnv.t
+    | AssignNewValf of Value.t
   [@@deriving compare, equal, sexp]
 end
 
@@ -98,9 +106,13 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.If (cond, thenn, elsee) ->
            InProgress(State.EvalTerm(0, cond, renv, cenv, (Cont.IfCond0(thenn, elsee, renv, cenv)) :: cont, store))
          | Term.Nil -> InProgress(State.ApplyCont(lv, cont, Value.Nil, store))
-         | Term.Ref _ -> failwith "not implemented!"
-         | Term.Deref _ -> failwith "not implemented!"
-         | Term.Assign (_, _) -> failwith "not implemented!"
+         | Term.Ref init ->
+           InProgress(State.EvalTerm(0, init, renv, cenv, Cont.Ref0 :: cont, store))
+         | Term.Deref loc ->
+           InProgress(State.EvalTerm(0, loc, renv, cenv, Cont.Deref0 :: cont, store))
+         | Term.Assign (dest, newval) ->
+           let cont1 = Cont.AssignDest0(newval, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(0, dest, renv, cenv, cont1, store))
          | Term.Letcs (var, ty, cls, tm, body) ->
            let cont1 = Cont.LetcsVal0(var, ty, cls, tm, body, renv, cenv) :: cont in
            InProgress(State.EvalTerm(lv, tm, renv, cenv, cont1, store))
@@ -165,9 +177,15 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
          | Term.Nil ->
            let result = Value.Fut Term.Nil in
            InProgress(State.ApplyCont(lv, cont, result, store))
-         | Term.Ref _ -> failwith "not implemented"
-         | Term.Deref _ -> failwith "not implemented"
-         | Term.Assign (_, _) -> failwith "not implemented"
+         | Term.Ref init ->
+           let cont1 = Cont.Reff :: cont in
+           InProgress(State.EvalTerm(lv, init, renv, cenv, cont1, store))
+         | Term.Deref loc ->
+           let cont1 = Cont.Dereff :: cont in
+           InProgress(State.EvalTerm(lv, loc, renv, cenv, cont1, store))
+         | Term.Assign (dest, newval) ->
+           let cont1 = Cont.AssignDestf(newval, renv, cenv) :: cont in
+           InProgress(State.EvalTerm(lv, dest, renv, cenv, cont1, store))
          | Term.Letcs (var, ty, cls, def, body) ->
            let var1 = Var.color var in
            let cls1 = Cls.color cls in
@@ -269,6 +287,25 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
               let result = Value.Code (Term.Quo(cls, Term.Bool b)) in
               InProgress(State.ApplyCont(lv, rest, result, store))
             | _ -> failwith "expected liftable values")
+         | Cont.Ref0 :: rest ->
+           let newloc = Loc.alloc () in
+           InProgress(State.ApplyCont(lv, rest, Value.Loc newloc, (newloc, v) :: store))
+         | Cont.Deref0 :: rest ->
+           (match v with
+            | Value.Loc(loc) ->
+              let content = Store.lookup loc store in
+              InProgress(State.ApplyCont(lv, rest, content, store))
+            | _ -> failwith "expected location")
+         | Cont.AssignDest0(newval, renv, cenv) :: rest ->
+           let cont1 = Cont.AssignNewVal0 v :: rest in
+           InProgress(State.EvalTerm(lv, newval, renv, cenv, cont1, store))
+         | Cont.AssignNewVal0(vloc) :: rest ->
+           (match (vloc) with
+            | (Value.Loc cloc) ->
+              let store1 = Store.update cloc v store in
+              InProgress(State.ApplyCont(lv, rest, Value.Nil, store1))
+            | _ -> failwith "expected location"
+           )
          | _ -> failwith "not implemented")
       else
         (match conts with
@@ -367,6 +404,27 @@ let run ?(debug=false) (state: State.t): Value.t * Store.t =
               InProgress(State.ApplyCont(lv, rest, result, store))
             | _ -> failwith "expected future values"
            )
+         | Cont.Reff :: rest ->
+           (match v with
+            | Value.Fut c ->
+              let result = Value.Fut (Term.Ref(c)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values")
+         | Cont.Dereff :: rest ->
+           (match v with
+            | Value.Fut c ->
+              let result = Value.Fut (Term.Deref(c)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values")
+         | Cont.AssignDestf(newval, renv, cenv) :: rest ->
+           let cont1 = Cont.AssignNewValf(v) :: rest in
+           InProgress(State.EvalTerm(lv, newval, renv, cenv, cont1, store))
+         | Cont.AssignNewValf(vdest) :: rest ->
+           (match (vdest, v) with
+            | (Value.Fut cdest, Value.Fut cnewval) ->
+              let result = Value.Fut (Term.Assign(cdest, cnewval)) in
+              InProgress(State.ApplyCont(lv, rest, result, store))
+            | _ -> failwith "expected future values")
          | _ -> failwith "not implemented"
         ) in
 
@@ -583,29 +641,29 @@ let%test_module "read term" = (module struct
   end)
 
 
-(* let%test_unit "ref" = *)
-(*   [%test_result: Value.t] *)
-(*     ({| *)
-(*         let r: ref int = ref 1 in *)
-(*         let () = r := 2 in *)
-(*         !r *)
-(*      |} *)
-(*      |> Cui.read_term *)
-(*      |> eval_v) *)
-(*     ~expect:(Value.Int 2); *)
-(*   [%test_result: Value.t] *)
-(*     ({| *)
-(*         let r: ref int = ref 0 in *)
-(*         let rec loop (n:int): unit = *)
-(*           if n < 1 then *)
-(*             () *)
-(*           else *)
-(*             let c: int = !r in *)
-(*             let () = r := (c + n) in *)
-(*             loop (n - 1) in *)
-(*         let () = loop 10 in *)
-(*         !r *)
-(*      |} *)
-(*      |> Cui.read_term *)
-(*      |> eval_v) *)
-(*     ~expect:(Value.Int 55) *)
+let%test_unit "ref" =
+  [%test_result: Value.t]
+    ({|
+        let r: ref int = ref 1 in
+        let () = r := 2 in
+        !r
+     |}
+     |> Cui.read_term
+     |> eval_v)
+    ~expect:(Value.Int 2);
+  [%test_result: Value.t]
+    ({|
+        let r: ref int = ref 0 in
+        let rec loop (n:int): unit =
+          if n < 1 then
+            ()
+          else
+            let c: int = !r in
+            let () = r := (c + n) in
+            loop (n - 1) in
+        let () = loop 10 in
+        !r
+     |}
+     |> Cui.read_term
+     |> eval_v)
+    ~expect:(Value.Int 55)
