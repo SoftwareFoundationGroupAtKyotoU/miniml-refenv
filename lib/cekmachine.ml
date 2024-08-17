@@ -98,41 +98,41 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
     match (state : Config.t) with
     | Config.EvalTerm (lv, tm, renv, cenv, conts, store) ->
       if Int.equal lv 0 then
+        let return (v: Value.t) =
+          (* Apply the current continuation to v *)
+          InProgress(Config.ApplyCont0(conts, v, store)) in
+        let enter (inner: Term.t)(cont: Cont.t_0) =
+          (* Evaluate inner while pushing rest computaion cont to the current continuation *)
+          InProgress(Config.EvalTerm(0, inner, renv, cenv, Cont.Runtime(cont) :: conts, store)) in
         (match tm with
-         | Term.Int i -> InProgress(Config.ApplyCont0(conts, Value.Int i, store))
-         | Term.Bool b -> InProgress(Config.ApplyCont0(conts, Value.Bool b, store))
+         | Term.Int i ->
+           return (Value.Int i)
+         | Term.Bool b ->
+           return (Value.Bool b)
          | Term.BinOp (op, arg1, arg2) ->
-           let conts1 = Cont.(Runtime(BinOpL0(op, arg2, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, arg1, renv, cenv, conts1, store))
+           enter arg1 (Cont.BinOpL0(op, arg2, renv, cenv))
          | Term.UniOp (op, arg) ->
-           let conts1 = Cont.(Runtime(Cont.UniOp0(op))) :: conts in
-           InProgress(Config.EvalTerm(lv, arg, renv, cenv, conts1, store))
+           enter arg (Cont.UniOp0(op))
          | Term.ShortCircuitOp (op, arg1, arg2) ->
-           let conts1  =Cont.(Runtime(Cont.ShortCircuitOpL0(op, arg2, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, arg1, renv, cenv, conts1, store))
+           enter arg1 (Cont.ShortCircuitOpL0(op, arg2, renv, cenv))
          | Term.Var var ->
-           let result = RuntimeEnv.lookup_var var renv in
-           InProgress(Config.ApplyCont0(conts, result, store))
+           return (RuntimeEnv.lookup_var var renv)
          | Term.Lam _ ->
-           let result = Value.Clos(renv, cenv, tm) in
-           InProgress(Config.ApplyCont0(conts, result, store))
+           return (Value.Clos(renv, cenv, tm))
          | Term.App (func, arg) ->
-           let conts1 = Cont.(Runtime(AppL0(arg, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, func, renv, cenv, conts1, store))
+           enter func (Cont.AppL0(arg, renv, cenv))
          | Term.Quo (cls, body) ->
            (* Switch from runtime to future *)
            let conts1 = Cont.(Future(Quof(CodeEnv.rename_cls cls cenv))) :: conts in
            InProgress(Config.EvalTerm(lv+1, body, renv, cenv, conts1, store))
          | Term.Unq (0, code) ->
-           let conts1 = Cont.(Runtime(RuntimeEval0(renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(0, code, renv, cenv, conts1, store))
-         | Term.Unq (_, _) -> failwith "Invalid level given to unquote"
+           enter code (Cont.RuntimeEval0(renv, cenv))
+         | Term.Unq (_, _) ->
+           failwith "Invalid level given to unquote"
          | Term.PolyCls _ ->
-           let result = Value.Clos(renv, cenv, tm) in
-           InProgress(Config.ApplyCont0(conts, result, store))
+           return (Value.Clos(renv, cenv, tm))
          | Term.AppCls (func, cls) ->
-           let conts1 = Cont.(Runtime(AppCls0(CodeEnv.rename_cls cls cenv))) :: conts in
-           InProgress(Config.EvalTerm(0, func, renv, cenv, conts1, store))
+           enter func (Cont.AppCls0(CodeEnv.rename_cls cls cenv))
          | Term.Fix (self, tys, clss, func) ->
            (match tys with
             | Func _
@@ -141,52 +141,50 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
               InProgress(Config.EvalTerm(0, func, renv1, cenv, conts, store))
             | _ -> failwith "Unexpected type for fixpoint")
          | Term.If (cond, thenn, elsee) ->
-           let conts1 = Cont.(Runtime(IfCond0(thenn, elsee, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(0, cond, renv, cenv, conts1, store))
-         | Term.Nil -> InProgress(Config.ApplyCont0(conts, Value.Nil, store))
+           enter cond (Cont.IfCond0(thenn, elsee, renv, cenv))
+         | Term.Nil ->
+           return Value.Nil
          | Term.Ref init ->
-           let conts1 = Cont.(Runtime(Ref0)) :: conts in
-           InProgress(Config.EvalTerm(0, init, renv, cenv, conts1, store))
+           enter init Cont.Ref0
          | Term.Deref loc ->
-           let conts1 = Cont.(Runtime(Deref0)) :: conts in
-           InProgress(Config.EvalTerm(0, loc, renv, cenv, conts1, store))
+           enter loc Cont.Deref0
          | Term.Assign (dest, newval) ->
-           let conts1 = Cont.(Runtime(AssignDest0(newval, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(0, dest, renv, cenv, conts1, store))
+           enter dest (Cont.AssignDest0(newval, renv, cenv))
          | Term.Letcs (var, ty, cls, tm, body) ->
-           let conts1 = Cont.(Runtime(LetcsVal0(var, ty, cls, tm, body, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, tm, renv, cenv, conts1, store))
+           enter tm (Cont.LetcsVal0(var, ty, cls, tm, body, renv, cenv))
          | Term.Lift (cls, tm) ->
-           let conts1 = Cont.(Runtime(Lift0(CodeEnv.rename_cls cls cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, tm, renv, cenv, conts1, store)))
+           enter tm (Cont.Lift0(CodeEnv.rename_cls cls cenv)))
       else
+        let return (tm: Term.t) =
+          (* Apply the current continuation to v *)
+          InProgress(Config.ApplyContf(lv, conts, tm, store)) in
+        let enter (inner: Term.t)(cont: Cont.t_f) =
+          (* Evaluate inner while pushing rest computaion cont to the current continuation *)
+          InProgress(Config.EvalTerm(lv, inner, renv, cenv, Cont.Future(cont) :: conts, store)) in
+        let enter_with_bind (inner: Term.t)(cenv1: CodeEnv.t)(cont: Cont.t_f) =
+          (* Evaluate inner while pushing rest computaion cont to the current continuation *)
+          InProgress(Config.EvalTerm(lv, inner, renv, cenv1, Cont.Future(cont) :: conts, store)) in
         (match tm with
          | Term.Int i ->
-           InProgress(Config.ApplyContf(lv, conts, Term.Int i, store))
+           return (Term.Int i)
          | Term.Bool b ->
-           InProgress(Config.ApplyContf(lv, conts, Term.Bool(b), store))
+           return (Term.Bool b)
          | Term.BinOp (op, argl, argr) ->
-           let conts1 = Cont.(Future(BinOpLf(op, argr, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, argl, renv, cenv, conts1, store))
+           enter argl (Cont.BinOpLf(op, argr, renv, cenv))
          | Term.UniOp (op, arg) ->
-           let conts1 = Cont.(Future(UniOpf(op))) :: conts in
-           InProgress(Config.EvalTerm(lv, arg, renv, cenv, conts1, store))
+           enter arg (Cont.UniOpf(op))
          | Term.ShortCircuitOp (op, argl, argr) ->
-           let conts1 = Cont.(Future(ShortCircuitOpLf(op, argr, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, argl, renv, cenv, conts1, store))
+           enter argl (Cont.ShortCircuitOpLf(op, argr, renv, cenv))
          | Term.Var var ->
-           let result = Term.Var (CodeEnv.rename_var var cenv) in
-           InProgress(Config.ApplyContf(lv, conts, result, store))
+           return (Term.Var (CodeEnv.rename_var var cenv))
          | Term.Lam (var, ty, cls, body) ->
            let var1 = Var.color var in
            let cls1 = Cls.color cls in
            let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
            let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
-           let conts1 = Cont.(Future(Lamf(var1, ty1, cls1))) :: conts in
-           InProgress(Config.EvalTerm(lv, body, renv, cenv1, conts1, store))
+           enter_with_bind body cenv1 (Cont.Lamf(var1, ty1, cls1))
          | Term.App (func, arg) ->
-           let conts1 = Cont.(Future(AppLf(arg, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, func, renv, cenv, conts1, store))
+           enter func (Cont.AppLf(arg, renv, cenv))
          | Term.Quo (cls, body) ->
            let conts1 = Cont.(Future(Quof(CodeEnv.rename_cls cls cenv))) :: conts in
            InProgress(Config.EvalTerm(lv + 1, body, renv, cenv, conts1, store))
@@ -203,82 +201,76 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
            let cls1 = Cls.color cls in
            let base1 = cenv |> CodeEnv.rename_cls base in
            let cenv1 = (CodeEnv.(Cls(cls, cls1) :: cenv)) in
-           let conts1 = Cont.(Future(PolyClsf(cls1, base1))) :: conts in
-           InProgress(Config.EvalTerm(lv, body, renv, cenv1, conts1, store))
+           enter_with_bind body cenv1 (Cont.PolyClsf(cls1, base1))
          | Term.AppCls (func, cls) ->
-           let cls = CodeEnv.rename_cls cls cenv in
-           let conts1 = Cont.(Future(AppClsf cls)) :: conts in
-           InProgress(Config.EvalTerm(lv, func, renv, cenv, conts1, store))
+           enter func (Cont.AppClsf (CodeEnv.rename_cls cls cenv))
          | Term.Fix (var, ty, cls, func) ->
            let var1 = Var.color var in
            let cls1 = Cls.color cls in
            let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
            let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
-           let conts1 = Cont.(Future(Fixf(var1, ty1, cls1))) :: conts in
-           InProgress(Config.EvalTerm(lv, func, renv, cenv1, conts1, store))
+           enter_with_bind func cenv1 (Cont.Fixf(var1, ty1, cls1))
          | Term.If (cond, thenn, elsee) ->
-           let conts1 = Cont.(Future(IfCondf(thenn, elsee, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, cond, renv, cenv, conts1, store))
+           enter cond (Cont.IfCondf(thenn, elsee, renv, cenv))
          | Term.Nil ->
-           InProgress(Config.ApplyContf(lv, conts, Term.Nil, store))
+           return Term.Nil
          | Term.Ref init ->
-           let conts1 = Cont.(Future(Reff)) :: conts in
-           InProgress(Config.EvalTerm(lv, init, renv, cenv, conts1, store))
+           enter init Cont.Reff
          | Term.Deref loc ->
-           let conts1 = Cont.(Future(Dereff)) :: conts in
-           InProgress(Config.EvalTerm(lv, loc, renv, cenv, conts1, store))
+           enter loc Cont.Dereff
          | Term.Assign (dest, newval) ->
-           let conts1 = Cont.(Future(AssignDestf(newval, renv, cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, dest, renv, cenv, conts1, store))
+           enter dest (Cont.AssignDestf(newval, renv, cenv))
          | Term.Letcs (var, ty, cls, def, body) ->
            let var1 = Var.color var in
            let cls1 = Cls.color cls in
            let ty1 = CodeEnv.rename_cls_in_typ ty cenv in
            let cenv1 = CodeEnv.Var(var, var1) :: CodeEnv.Cls(cls, cls1) :: cenv in
-           let conts1 = Cont.(Future(LetcsValf(var1, ty1, cls1, body, renv, cenv1))) :: conts in
-           InProgress(Config.EvalTerm(lv, def, renv, cenv, conts1, store))
+           enter def (Cont.LetcsValf(var1, ty1, cls1, body, renv, cenv1))
          | Term.Lift (cls, tm) ->
-           let conts1 = Cont.(Future(Liftf(CodeEnv.rename_cls cls cenv))) :: conts in
-           InProgress(Config.EvalTerm(lv, tm, renv, cenv, conts1, store))
+           enter tm (Cont.Liftf(CodeEnv.rename_cls cls cenv))
         )
     | Config.ApplyCont0 (conts, v, store) ->
       (match conts with
        | [] -> Done(v, store)
        | (Cont.Runtime(head) :: rest) ->
+         let return (v: Value.t): stepResult =
+           (* apply the contiuation to v *)
+           InProgress(Config.ApplyCont0(rest, v, store)) in
+         let eval (tm: Term.t)(renv: Value.t RuntimeEnv.t)(cenv: CodeEnv.t): stepResult =
+           (* compute tm under renv and cenv, and then apply the result to the current continuation *)
+           InProgress(Config.EvalTerm(0, tm, renv, cenv, rest, store)) in
+         let resume (tm: Term.t)(renv: Value.t RuntimeEnv.t)(cenv: CodeEnv.t)(cont: Cont.t_0): stepResult =
+           (* resume computing tm under renv and cenv with pushing cont to the current continuation *)
+           InProgress(Config.EvalTerm(0, tm, renv, cenv, Cont.Runtime(cont) :: rest, store)) in
          (match head with
           | Cont.BinOpL0(op, tm, renv, cenv) ->
-            let conts1 = Cont.(Runtime(BinOpR0(op, v))) :: rest in
-            InProgress(Config.EvalTerm(0, tm, renv, cenv, conts1, store))
+            resume tm renv cenv (Cont.(BinOpR0(op, v)))
           | Cont.BinOpR0(op, v2) ->
-            let result = Primitives.performBinOp op v2 v in
-            InProgress(Config.ApplyCont0(rest, result, store))
+            return (Primitives.performBinOp op v2 v)
           | Cont.UniOp0(op) ->
-            let result = Primitives.performUniOp op v in
-            InProgress(Config.ApplyCont0(rest, result, store))
+            return (Primitives.performUniOp op v)
           | Cont.ShortCircuitOpL0(op, argr, renv, cenv) ->
             (match (op, v) with
              | (ShortCircuitOp.And, Value.Bool false) ->
-               InProgress(Config.ApplyCont0(rest, Value.Bool(false), store))
+               return (Value.Bool(false))
              | (ShortCircuitOp.Or, Value.Bool true) ->
-               InProgress(Config.ApplyCont0(rest, Value.Bool(true), store))
+               return (Value.Bool(true))
              | (ShortCircuitOp.And, Value.Bool true)
              | (ShortCircuitOp.Or, Value.Bool false) ->
-               InProgress(Config.EvalTerm(0, argr, renv, cenv, rest, store))
+               eval argr renv cenv
              | _ -> failwith "Expected Bool"
             )
-          | Cont.AppL0(tm, renv, cenv) ->
-            let conts1 = Cont.(Runtime(AppR0 v)) :: rest in
-            InProgress(Config.EvalTerm(0, tm, renv, cenv, conts1, store))
+          | Cont.AppL0(arg, renv, cenv) ->
+            resume arg renv cenv (Cont.AppR0 v)
           | Cont.AppR0(func) ->
             (match func with
-             | Value.Clos(renv1, cenv1, Term.Lam(var, _, ty, body)) ->
-               let renv2 = (var, ty, v) :: renv1 in
-               InProgress(Config.EvalTerm(0, body, renv2, cenv1, rest, store))
+             | Value.Clos(renv, cenv, Term.Lam(var, _, ty, body)) ->
+               eval body ((var, ty, v) :: renv) cenv
              | _ -> failwith "expected closure")
           | Cont.RuntimeEval0(renv, cenv) ->
             (match v with
              | Value.Code (Term.Quo(_, body)) ->
-               InProgress(Config.EvalTerm(0, body, renv, cenv, rest, store))
+               eval body renv cenv
              | _ -> failwith "Expected quoted code")
           | Cont.Unq0(lvdiff) ->
             assert(lvdiff > 0);
@@ -291,38 +283,33 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
           | Cont.AppCls0(cls) ->
             (match v with
              | Value.Clos (renv, cenv, Term.PolyCls(cls1, _, body)) ->
-               let cenv1 = (CodeEnv.Cls(cls1, cls)) :: cenv in
-               InProgress(Config.EvalTerm(0, body, renv, cenv1, rest, store))
+               eval body renv (CodeEnv.Cls(cls1, cls) :: cenv)
              | _ -> failwith "expected polycls"
             )
           | Cont.IfCond0(thenn, elsee, renv, cenv) ->
             (match v with
              | (Value.Bool b) ->
-               let branch = if b then thenn else elsee in
-               InProgress(Config.EvalTerm(0, branch, renv, cenv, rest, store))
+               eval (if b then thenn else elsee) renv cenv
              | _ -> failwith "expected boolean")
           | Cont.LetcsVal0(var, ty, cls, def, body, renv, cenv) ->
-            let conts1 = Cont.(Runtime(LetcsBody0(var, ty, cls, def, RuntimeEnv.current renv))) :: rest in
             let renv1 = (var, cls, v) :: renv in
-            InProgress(Config.EvalTerm(0, body, renv1, cenv, conts1, store))
+            let cont = Cont.LetcsBody0(var, ty, cls, def, RuntimeEnv.current renv) in
+            resume body renv1 cenv cont
           | Cont.LetcsBody0(var, ty, cls, def, current_cls) ->
             (match v with
              | Value.Code Term.Quo(_, body) ->
-               let result = Value.Code(Term.Quo(current_cls, Term.Letcs(var, ty, cls, def, body))) in
-               InProgress(Config.ApplyCont0(rest, result, store))
+               return (Value.Code(Term.Quo(current_cls, Term.Letcs(var, ty, cls, def, body))))
              | Value.Nil
              | Value.Bool _
              | Value.Int _ ->
-               InProgress(Config.ApplyCont0(rest, v, store))
+               return v
              | _ -> failwith "expected code or primitive values ")
           | Cont.Lift0 cls ->
             (match v with
              | Value.Int i ->
-               let result = Value.Code (Term.Quo(cls, Term.Int i)) in
-               InProgress(Config.ApplyCont0(rest, result, store))
+               return (Value.Code (Term.Quo(cls, Term.Int i)))
              | Value.Bool b ->
-               let result = Value.Code (Term.Quo(cls, Term.Bool b)) in
-               InProgress(Config.ApplyCont0(rest, result, store))
+               return (Value.Code (Term.Quo(cls, Term.Bool b)))
              | _ -> failwith "expected liftable values")
           | Cont.Ref0 ->
             let newloc = Loc.alloc () in
@@ -330,12 +317,10 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
           | Cont.Deref0 ->
             (match v with
              | Value.Loc(loc) ->
-               let content = Store.lookup loc store in
-               InProgress(Config.ApplyCont0(rest, content, store))
+               return (Store.lookup loc store)
              | _ -> failwith "expected location")
           | Cont.AssignDest0(newval, renv, cenv) ->
-            let conts1 = Cont.(Runtime(AssignNewVal0 v)) :: rest in
-            InProgress(Config.EvalTerm(0, newval, renv, cenv, conts1, store))
+            resume newval renv cenv (Cont.AssignNewVal0 v)
           | Cont.AssignNewVal0(vloc) ->
             (match vloc with
              | (Value.Loc cloc) ->
@@ -347,32 +332,33 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
        | _ -> failwith "Ill-formed configuraiton: runtime value is passed to future continutation")
     | Config.ApplyContf (lv, conts, v, store) ->
       (match conts with
-       | Cont.Future(head) :: rest ->
+       | [] -> failwith "Ill-formed configuraiton: machine can only exit at runtime"
+       | Cont.Runtime(_) :: _ ->
+         failwith "Ill-formed configuraiton: future value being passed to current continutation"
+       | Future head :: rest ->
+         let return (tm: Term.t): stepResult =
+           (* apply the contiuation to v *)
+           InProgress(Config.ApplyContf(lv, rest, tm, store)) in
+         let resume (tm: Term.t)(renv: Value.t RuntimeEnv.t)(cenv: CodeEnv.t)(cont: Cont.t_f): stepResult =
+           (* resume computing tm under renv and cenv with pushing cont to the current continuation *)
+           InProgress(Config.EvalTerm(lv, tm, renv, cenv, Cont.Future(cont) :: rest, store)) in
          (match head with
           | Cont.BinOpLf(op, tm, renv, cenv) ->
-            let conts1 = Cont.(Future(BinOpRf(op, v))) :: rest in
-            InProgress(Config.EvalTerm(lv, tm, renv, cenv, conts1, store))
+            resume tm renv cenv (Cont.BinOpRf(op, v))
           | Cont.BinOpRf(op, vl) ->
-            let result = Term.BinOp(op, vl, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.BinOp(op, vl, v))
           | Cont.UniOpf(op) ->
-            let result = Term.UniOp(op, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.UniOp(op, v))
           | Cont.ShortCircuitOpLf(op, argr, renv, cenv) ->
-            let conts1 = Cont.(Future(ShortCircuitOpRf(op, v))) :: rest in
-            InProgress(Config.EvalTerm(lv, argr, renv, cenv, conts1, store))
+            resume argr renv cenv (Cont.ShortCircuitOpRf(op, v))
           | Cont.ShortCircuitOpRf(op, vl) ->
-            let result = Term.ShortCircuitOp(op, vl, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.ShortCircuitOp(op, vl, v))
           | Cont.Lamf(var, ty, cls) ->
-            let result = Term.Lam(var, ty, cls, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Lam(var, ty, cls, v))
           | Cont.AppLf(arg, renv, cenv) ->
-            let conts1 = Cont.(Future(AppRf(v))) :: rest in
-            InProgress(Config.EvalTerm(lv, arg, renv, cenv, conts1, store))
+            resume arg renv cenv (Cont.AppRf(v))
           | Cont.AppRf(vfunc) ->
-            let result = Term.App(vfunc, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.App(vfunc, v))
           | Cont.Quof(cls) ->
             if Int.equal lv 1 then
               (* Switch from future to runtime *)
@@ -385,50 +371,32 @@ let run ?(debug=false) (state: Config.t): Value.t * Store.t =
             let result = Term.Unq(lvdiff, v) in
             InProgress(Config.ApplyContf(lv + lvdiff, rest, result, store))
           | Cont.PolyClsf(cls, base) ->
-            let result = Term.PolyCls(cls, base, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.PolyCls(cls, base, v))
           | Cont.AppClsf(cls) ->
-            let result = Term.AppCls(v, cls) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.AppCls(v, cls))
           | Cont.Fixf(var, ty, cls) ->
-            let result = Term.Fix(var, ty, cls, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Fix(var, ty, cls, v))
           | Cont.IfCondf(thenn, elsee, renv, cenv) ->
-            let conts1 = Cont.(Future(IfThenf(v, elsee, renv, cenv))) :: rest in
-            InProgress(Config.EvalTerm(lv, thenn, renv, cenv, conts1, store))
+            resume thenn renv cenv (Cont.IfThenf(v, elsee, renv, cenv))
           | Cont.IfThenf(condv, elsee, renv, cenv) ->
-            let conts1 = Cont.(Future(IfElsef(condv, v))) :: rest in
-            InProgress(Config.EvalTerm(lv, elsee, renv, cenv, conts1, store))
+            resume elsee renv cenv (Cont.IfElsef(condv, v))
           | Cont.IfElsef(condv, thenv) ->
-            let result = Term.If(condv, thenv, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.If(condv, thenv, v))
           | Cont.LetcsValf(var, ty, cls, body, renv, cenv) ->
-            let conts1 = Cont.(Future(LetcsBodyf(var, ty, cls, v))) :: rest in
-            InProgress(Config.EvalTerm(lv, body, renv, cenv, conts1, store))
+            resume body renv cenv (Cont.LetcsBodyf(var, ty, cls, v))
           | Cont.LetcsBodyf(var, ty, cls, vval) ->
-            let result = Term.Letcs (var, ty, cls, vval, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Letcs (var, ty, cls, vval, v))
           | Cont.Liftf(cls)->
-            let result = Term.Lift(cls, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Lift(cls, v))
           | Cont.Reff ->
-            let result = Term.Ref(v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Ref(v))
           | Cont.Dereff ->
-            let result = Term.Deref(v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
+            return (Term.Deref(v))
           | Cont.AssignDestf(newval, renv, cenv) ->
-            let conts1 = Cont.(Future(AssignNewValf(v))) :: rest in
-            InProgress(Config.EvalTerm(lv, newval, renv, cenv, conts1, store))
+            resume newval renv cenv (Cont.AssignNewValf(v))
           | Cont.AssignNewValf(vdest) ->
-            let result = Term.Assign(vdest, v) in
-            InProgress(Config.ApplyContf(lv, rest, result, store))
-         )
-       | Cont.Runtime(_) :: _ ->
-         failwith "Ill-formed configuraiton: future value being passed to current continutation"
-       | [] ->
-         failwith "Ill-formed configuraiton: machine can only exit at runtime"
-      ) in
+            return (Term.Assign(vdest, v))
+         )) in
   let rec loop (state: Config.t): Value.t * Store.t =
     match step state with
     | InProgress next_state -> loop next_state
@@ -591,7 +559,7 @@ let%test_module "read term" = (module struct
           "`{@! `{@! 1 } }" |> Cui.read_term
         ))
 
-    let%test_unit "generate code with unquote" =
+  let%test_unit "generate code with unquote" =
     [%test_result: Value.t]
       ("`{@! let x:<int@!> = `{@! 1 } in `{@! ~x }}"
        |> Cui.read_term
