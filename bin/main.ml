@@ -12,7 +12,7 @@ let one_iter(tm:Term.t) =
     ty |> Typ.sexp_of_t |> Stdio.print_s;
     Stdio.print_endline "";
 
-    let v = Cekmachine.eval_v ~debug:true tm in
+    let v = Cekmachine.eval ~debug:false tm in
     Stdio.print_endline "evaluated value is:";
     v |> Evalcommon.Value.sexp_of_t |> Stdio.print_s;
     Stdio.print_endline "";

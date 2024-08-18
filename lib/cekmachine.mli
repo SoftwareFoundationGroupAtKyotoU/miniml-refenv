@@ -67,9 +67,14 @@ module Config : sig
   val init: Term.t -> t
 end
 
-val run:
-  ?debug:bool ->
-  Config.t ->
-  Value.t * Store.t
+module StepResult : sig
+  type t =
+    | InProgress of Config.t
+    | Done of Value.t * Store.t
+end
 
-val eval_v: ?debug:bool -> Term.t -> Value.t
+val step: ?debug:bool -> Config.t -> StepResult.t
+
+val run: ?debug:bool -> Config.t -> Value.t * Store.t
+
+val eval: ?debug:bool -> Term.t -> Value.t
