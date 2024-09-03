@@ -7,7 +7,8 @@ let x : <int@!> = `{@! 1 } in
    *)
   let y : int @ g = 10 in
 
-  (* ~x type-checks because ! <: g holds
+  (* when performing ~x,
+   * we want to check that ! <: g holds (= g is bigger env than !)
    * ! (env of code in x) -> empty
    * g (current env)      -> y : int
    *)

@@ -19,7 +19,18 @@ let spower(n:int):<int->int@!> =
   `{@!
      fun(x:int@g)->
        ~{ spower_@@g n `{@g x } (fun[g1:>g](y:<int@g1>) -> y) }
-  } in
+   } in
+
+(*
+  spower 11 =>
+  `{@!
+    fun x:int ->
+      let x1 = x * x in
+      let x2 = x1 * x1 in
+      let x3 = x2 * x2 in
+      x * x1 * x3
+  }
+*)
 
 `{@!
   let power11(x:int):int = ~{spower 11} x in
