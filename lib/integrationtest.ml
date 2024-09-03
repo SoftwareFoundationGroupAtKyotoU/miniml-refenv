@@ -228,3 +228,19 @@ let%test_unit "big test cases" =
             }
          |} |> Cui.read_term
       ))
+
+let%test_unit "avoid variable name collision with run-time evaluation" =
+    let subject = Cui.read_term
+        {|
+          let x:int@g = 1 in
+          let f(y:<int@g>):int =
+            let x:int = 2 in
+            ~0{ y } in
+          f `{@g x }
+         |} in
+  [%test_result: (Typ.t, string) Result.t]
+    (subject |> Typechecker.typeinfer true Context.empty)
+    ~expect:(return (Typ.BaseInt));
+  [%test_result: Evalcommon.Value.t]
+    (subject |> Cekmachine.eval)
+    ~expect:(Evalcommon.Value.Int(1))

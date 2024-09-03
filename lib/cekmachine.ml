@@ -250,7 +250,8 @@ let step ?(debug=false) (state: Config.t): StepResult.t =
        | Term.ShortCircuitOp (op, arg1, arg2) ->
          enter arg1 (Cont.ShortCircuitOpL0(op, arg2, renv, cenv))
        | Term.Var var ->
-         return (RuntimeEnv.lookup_var var renv)
+         let truename = CodeEnv.rename_var var cenv in
+         return (RuntimeEnv.lookup_var truename renv)
        | Term.Lam _ ->
          return (Value.Clos(renv, cenv, tm))
        | Term.App (func, arg) ->
@@ -271,8 +272,11 @@ let step ?(debug=false) (state: Config.t): StepResult.t =
          (match tys with
           | Func _
           | PolyCls _ ->
-            let renv1 = (self, clss, Value.Clos(renv, cenv, expand_eta tm tys)) :: renv in
-            InProgress(Config.EvalTerm(0, func, renv1, cenv, conts, store))
+            let self1 = Var.color self in
+            let clss1 = Cls.color clss in
+            let renv1 = (self1, clss1, Value.Clos(renv, cenv, expand_eta tm tys)) :: renv in
+            let cenv1 = CodeEnv.(Var(self, self1) :: Cls(clss, clss1) :: cenv) in
+            InProgress(Config.EvalTerm(0, func, renv1, cenv1, conts, store))
           | _ -> failwith "Unexpected type for fixpoint")
        | Term.If (cond, thenn, elsee) ->
          enter cond (Cont.IfCond0(thenn, elsee, renv, cenv))
@@ -398,8 +402,10 @@ let step ?(debug=false) (state: Config.t): StepResult.t =
           resume arg renv cenv (Cont.AppR0 v)
         | Cont.AppR0(func) ->
           (match func with
-           | Value.Clos(renv, cenv, Term.Lam(var, _, ty, body)) ->
-             eval body ((var, ty, v) :: renv) cenv
+           | Value.Clos(renv, cenv, Term.Lam(var, _, cls, body)) ->
+             let var1 = Var.color(var) in
+             let cls1 = Cls.color(cls) in
+             eval body ((var1, cls, v) :: renv) (CodeEnv.(Var(var, var1)) :: Cls(cls, cls1) :: cenv)
            | _ -> failwith "expected closure")
         | Cont.RuntimeEval0(renv, cenv) ->
           (match v with
@@ -426,9 +432,12 @@ let step ?(debug=false) (state: Config.t): StepResult.t =
              eval (if b then thenn else elsee) renv cenv
            | _ -> failwith "expected boolean")
         | Cont.LetcsVal0(var, ty, cls, def, body, renv, cenv) ->
-          let renv1 = (var, cls, v) :: renv in
-          let cont = Cont.LetcsBody0(var, ty, cls, def, RuntimeEnv.current renv) in
-          resume body renv1 cenv cont
+          let var1 = Var.color var in
+          let cls1 = Cls.color cls in
+          let renv1 = (var1, cls1, v) :: renv in
+          let cenv1 = CodeEnv.(Var(var, var1) :: Cls(cls, cls1) :: cenv) in
+          let cont = Cont.LetcsBody0(var1, ty, cls1, def, RuntimeEnv.current renv) in
+          resume body renv1 cenv1 cont
         | Cont.LetcsBody0(var, ty, cls, def, current_cls) ->
           (match v with
            | Value.Code Term.Quo(_, body) ->
