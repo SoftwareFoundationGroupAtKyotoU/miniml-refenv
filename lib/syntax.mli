@@ -13,6 +13,7 @@ module Cls: sig
   include Comparator.S with type t := t
   type set = (t, comparator_witness) Set.t
 
+  val display: t -> string
 end
 
 module Typ: sig
@@ -32,6 +33,8 @@ module Typ: sig
   val compare: t -> t -> int
   val rename_cls: Cls.t -> Cls.t -> t -> t
   val free_cls: t -> Cls.set
+
+  val display: t -> string
 end
 
 module Var: sig
@@ -41,6 +44,8 @@ module Var: sig
   val from_string: string -> t
   val gen: unit -> t
   val color: t -> t
+
+  val display: t -> string
 end
 
 module BinOp : sig
@@ -53,12 +58,16 @@ module BinOp : sig
     | LT
     | Equal
   [@@deriving compare, equal, sexp]
+
+  val display: t -> string
 end
 
 module UniOp : sig
   type t =
     | Not
   [@@deriving compare, equal, sexp]
+
+  val display: t -> string
 end
 
 module ShortCircuitOp : sig
@@ -66,6 +75,8 @@ module ShortCircuitOp : sig
     | And
     | Or
   [@@deriving compare, equal, sexp]
+
+  val display: t -> string
 end
 
 module Term: sig
@@ -96,6 +107,8 @@ module Term: sig
   val compare: t -> t -> int
   val rename_var: Var.t -> Var.t -> t -> t
   val rename_cls: Cls.t -> Cls.t -> t -> t
+
+  val display: t -> string
 end
 
 module Context: sig

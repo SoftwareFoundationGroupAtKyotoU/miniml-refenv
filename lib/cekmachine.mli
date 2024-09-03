@@ -55,6 +55,8 @@ module Cont : sig
     | Runtime of t_0
     | Future of t_f
   [@@deriving compare, equal, sexp]
+
+  val display : t list -> string
 end
 
 module Config : sig
@@ -65,6 +67,8 @@ module Config : sig
   [@@deriving compare, equal, sexp]
 
   val init: Term.t -> t
+
+  val display: t -> string
 end
 
 module StepResult : sig

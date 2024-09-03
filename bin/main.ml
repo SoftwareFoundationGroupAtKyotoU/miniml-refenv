@@ -9,13 +9,11 @@ let one_iter(tm:Term.t) =
     exit(1)
   | Result.Ok ty ->
     Stdio.print_endline "Inferred type is:";
-    ty |> Typ.sexp_of_t |> Stdio.print_s;
-    Stdio.print_endline "";
+    ty |> Typ.display |> Stdio.print_endline;
 
-    let v = Cekmachine.eval ~debug:false tm in
+    let v = Cekmachine.eval ~debug:true tm in
     Stdio.print_endline "evaluated value is:";
-    v |> Evalcommon.Value.sexp_of_t |> Stdio.print_s;
-    Stdio.print_endline "";
+    v |> Evalcommon.Value.display |> Stdio.print_endline;
     v
 
 let term = (Cui.read_term_from_channel Stdio.In_channel.stdin);;

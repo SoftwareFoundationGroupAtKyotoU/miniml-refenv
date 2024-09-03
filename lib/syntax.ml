@@ -37,6 +37,17 @@ module Cls = struct
   let rename_cls(from:t)(dest:t)(cls:t):t =
     if equal from cls then dest else cls
 
+  let display(cls:t):string =
+    (match cls with
+     | Init -> "!"
+     | Gen id ->
+       Printf.sprintf "_%d" id
+     | Raw name ->
+       name
+     | Colored (name, id) ->
+       Printf.sprintf "%s_%d" name id
+    )
+
 end
 
 let%test_unit "alloc generate different classifiers" =
@@ -108,6 +119,21 @@ module Typ = struct
 
   let compare (ty1: t) (ty2: t) =
     if equal ty1 ty2 then 0 else 1
+
+  let rec display(ty:t):string =
+    (match ty with
+     | BaseInt -> "int"
+     | BaseBool -> "bool"
+     | Func (l, r) ->
+       Printf.sprintf "(%s -> %s)" (display l) (display r)
+     | Code (cls, ty1) ->
+       Printf.sprintf "<%s @%s>" (display ty1) (Cls.display cls)
+     | PolyCls (cls, base, body) ->
+       Printf.sprintf "((%s :> %s) -> %s)" (Cls.display cls) (Cls.display base) (display body)
+     | Unit -> "unit"
+     | Ref ty1 ->
+       Printf.sprintf "(ref %s)" (display ty1)
+    )
 end
 
 let%test_module "subst classifiers in a type" = (module struct
@@ -186,6 +212,17 @@ module Var = struct
     | Gen _ -> Gen(count)
     | Raw name
     | Colored (name, _) -> Colored(name, count)
+
+  let display (var:t): string =
+    (match var with
+     | Gen id ->
+       Printf.sprintf "_%d" id
+     | Raw name ->
+       name
+     | Colored (name, id) ->
+       Printf.sprintf "%s_%d" name id
+    )
+
 end
 
 let%test_unit "alloc generate different variables" =
@@ -204,12 +241,25 @@ module BinOp = struct
     | LT
     | Equal
   [@@deriving compare, equal, sexp]
+
+  let display(op:t):string =
+    (match op with
+     | Plus -> "+"
+     | Mult -> "*"
+     | Minus -> "-"
+     | Div -> "/"
+     | Mod -> "%"
+     | LT -> "<"
+     | Equal -> "=")
 end
 
 module UniOp = struct
   type t =
     | Not
   [@@deriving compare, equal, sexp]
+
+  let display(op:t):string =
+    (match op with | Not -> "not")
 end
 
 module ShortCircuitOp = struct
@@ -217,6 +267,11 @@ module ShortCircuitOp = struct
     | And
     | Or
   [@@deriving compare, equal, sexp]
+
+  let display(op:t):string =
+    (match op with
+     | And -> "&&"
+     | Or -> "||")
 end
 
 module Term = struct
@@ -422,6 +477,59 @@ module Term = struct
     if equal a b
     then 0
     else 1
+
+  let rec display (tm:t) : string = (match tm with
+      | Int i -> Int.to_string i
+      | Bool b -> Bool.to_string b
+      | BinOp (op, l, r) ->
+        Printf.sprintf "(%s %s %s)" (BinOp.display op) (display l) (display r)
+      | UniOp (op, x) ->
+        Printf.sprintf "(%s %s)" (UniOp.display op) (display x)
+      | ShortCircuitOp (op, l, r) ->
+        Printf.sprintf "(%s %s %s)" (ShortCircuitOp.display op) (display l) (display r)
+      | Var v -> Var.display v
+      | App (Lam(var, typ, cls, body), value) ->
+        (* let expression *)
+        (match cls with
+         | Cls.Gen _ ->
+           Printf.sprintf "(let %s:%s = %s in %s)"
+             (Var.display var) (Typ.display typ) (display value) (display body)
+         | _ ->
+           Printf.sprintf "(let %s:%s@%s = %s in %s)"
+             (Var.display var) (Typ.display typ) (Cls.display cls) (display value) (display body))
+      | Lam (var, typ, cls, body) ->
+        (match cls with
+         | Cls.Gen _ ->
+           Printf.sprintf "(fun (%s:%s) -> %s)" (Var.display var) (Typ.display typ) (display body)
+         | _ ->
+           Printf.sprintf "(fun (%s:%s@%s) -> %s)" (Var.display var) (Typ.display typ) (Cls.display cls) (display body))
+      | App (func, arg) ->
+        Printf.sprintf "(%s %s)" (display func) (display arg)
+      | Quo (cls, body) ->
+        Printf.sprintf "`{@%s %s}" (Cls.display cls) (display body)
+      | Unq (diff, code) ->
+        Printf.sprintf "~%d{ %s }" diff (display code)
+      | PolyCls (cls, base, body) ->
+        Printf.sprintf "(fn[%s:>%s]->%s)" (Cls.display cls) (Cls.display base) (display body)
+      | AppCls (func, cls) ->
+        Printf.sprintf "%s@@%s" (display func) (Cls.display cls)
+      | Fix (var, typ, cls, body) ->
+        Printf.sprintf "(fix(%s:%s@%s) -> %s)" (Var.display var) (Typ.display typ) (Cls.display cls) (display body)
+      | If (cond, thenn, elsee) ->
+        Printf.sprintf "(if %s then %s else %s)" (display cond) (display thenn) (display elsee)
+      | Nil -> "()"
+      | Ref init ->
+        Printf.sprintf "(ref %s)" (display init)
+      | Deref ref ->
+        Printf.sprintf "!(%s)" (display ref)
+      | Assign (ref, newval) ->
+        Printf.sprintf "(%s := %s)" (display ref) (display newval)
+      | Letcs (var, typ, cls, value, body) ->
+        Printf.sprintf "(let cs %s:%s@%s = %s in %s)"
+          (Var.display var) (Typ.display typ) (Cls.display cls) (display value) (display body)
+      | Lift (cls, value) ->
+        Printf.sprintf "(lift@%s %s)" (Cls.display cls) (display value)
+    )
 
 end
 

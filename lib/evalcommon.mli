@@ -9,6 +9,9 @@ module RuntimeEnv : sig
 
   val current : 'a t -> Cls.t
 
+  val display : 'a t -> ('a -> string) -> int -> string
+  val display_abbr : 'a t -> string
+
 end
 
 module CodeEnv : sig
@@ -23,6 +26,9 @@ module CodeEnv : sig
   val rename_var: Var.t -> t -> Var.t
   val rename_cls: Cls.t -> t -> Cls.t
   val rename_cls_in_typ: Typ.t -> t -> Typ.t
+
+  val display : t -> int -> string
+  val display_abbr : t -> string
 end
 
 module Loc : sig
@@ -30,6 +36,8 @@ module Loc : sig
   [@@deriving compare, equal, sexp]
 
   val alloc : unit -> t
+
+  val display : t -> string
 end
 
 module Value : sig
@@ -43,6 +51,8 @@ module Value : sig
     | Loc of Loc.t
     | Nil
   [@@deriving compare, equal, sexp]
+
+  val display : t -> string
 end
 
 module Store : sig

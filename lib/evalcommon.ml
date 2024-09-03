@@ -17,6 +17,25 @@ module RuntimeEnv = struct
     match env with
     | [] -> Cls.init
     | (_, g, _) :: _ -> g
+
+  let display (env: 'a t)(display_elm: 'a -> string)(indent: int): string =
+    let spc = (String.make indent ' ') in
+    let rec hoge env1 = (match env1 with
+        | [] -> ""
+        | (var, cls, elm) :: tail ->
+          spc ^ "  " ^
+          Printf.sprintf "%s@%s := %s\n" (Var.display var) (Cls.display cls) (display_elm elm)
+          ^ hoge tail
+      )
+
+    in
+    "{\n" ^ hoge env ^ spc ^ "}"
+
+  let display_abbr (env: 'a t): string =
+    let hoge = env |> List.map ~f:(fun (var, _, _) -> Var.display var)
+               |> String.concat ~sep:", " in
+    "{r| " ^ hoge ^ " }"
+
 end
 
 module CodeEnv = struct
@@ -67,6 +86,30 @@ module CodeEnv = struct
       Typ.PolyCls (cls', base', ty')
     | Typ.Unit -> Typ.Unit
     | Typ.Ref ty -> Typ.Ref(env |> rename_cls_in_typ ty)
+
+  let display (env:t)(indent:int): string =
+    let spc = (String.make indent ' ') in
+    let rec hoge env1 = (match env1 with
+        | [] -> ""
+        | Var(var, var1) :: tail ->
+          spc ^ "  " ^
+          (Printf.sprintf "%s := %s\n" (Var.display var) (Var.display var1)) ^
+          hoge tail
+        | Cls(cls, cls1) :: tail ->
+          spc ^ "  " ^
+          (Printf.sprintf "%s := %s\n" (Cls.display cls) (Cls.display cls1)) ^
+          hoge tail
+      ) in
+    "{\n" ^ hoge env ^ spc ^ "}"
+
+  let display_abbr (env: t): string =
+    let hoge = env
+               |> List.map ~f:(fun elm -> (match elm with
+                   | Var (var, _) -> Var.display var
+                   | Cls (cls, _) -> Cls.display cls))
+               |> String.concat ~sep:", " in
+    "{c| " ^ hoge ^ " }"
+
 end
 
 module Loc = struct
@@ -79,6 +122,9 @@ module Loc = struct
     let ret = !counter in
     counter := ret + 1;
     ret
+
+  let display (loc : t) =
+    Printf.sprintf "[loc %d]" loc
 end
 
 module Value = struct
@@ -90,6 +136,18 @@ module Value = struct
     | Loc of Loc.t
     | Nil
   [@@deriving compare, equal, sexp]
+
+  let display (v : t) : string =
+    (match v with
+     | Int i -> Int.to_string i
+     | Bool b -> Bool.to_string b
+     | Clos (_renv, _cenv, body) ->
+       Printf.sprintf "Clos(..., %s)" (Term.display body)
+     | Code body ->
+       (Term.display body)
+     | Loc loc ->
+       (Loc.display loc)
+     | Nil -> "()")
 end
 
 module Store = struct

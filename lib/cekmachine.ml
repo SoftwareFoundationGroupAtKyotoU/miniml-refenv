@@ -55,6 +55,117 @@ module Cont = struct
     | Runtime of t_0
     | Future of t_f
   [@@deriving compare, equal, sexp]
+
+  let display_0 (cont : t_0) : string =
+    (match cont with
+     | BinOpL0 (op, r, _renv, _cenv) ->
+       Printf.sprintf "{0 [] %s (%s, %s |- %s) }"
+         (BinOp.display op) (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display r)
+     | BinOpR0 (op, l) ->
+       Printf.sprintf "{0 %s %s [] }" (Value.display l) (BinOp.display op)
+     | UniOp0 op ->
+       Printf.sprintf "{0 %s [] }" (UniOp.display op)
+     | ShortCircuitOpL0 (op, r, _renv, _cenv) ->
+       Printf.sprintf "{0 [] %s (%s, %s |- %s) }"
+         (ShortCircuitOp.display op) (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display r)
+     | AppL0 (r, _renv, _cenv) ->
+       Printf.sprintf "{0 [] (%s, %s |- %s) }"
+         (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display r)
+     | AppR0 l ->
+       Printf.sprintf "{0 %s [] }" (Value.display l)
+     | RuntimeEval0 (_renv, _cenv) ->
+       Printf.sprintf "{0 %s, %s |- ~0{ [] } }" (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv)
+     | Unq0 diff ->
+       Printf.sprintf "{0 ~%d{ [] } }" diff
+     | AppCls0 cls ->
+       Printf.sprintf "{0 [] @@ %s }" (Cls.display cls)
+     | IfCond0 (thenn, elsee, _renv, _cenv) ->
+       Printf.sprintf "{0 if [] then (%s, %s |- %s) else (... |- %s) }"
+         (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display thenn) (Term.display elsee)
+     | LetcsVal0 (var, ty, cls, def, body, _renv, _cenv) ->
+       Printf.sprintf "{0 let cs %s:%s@%s = [] / %s in (%s, %s |- %s) }"
+         (Var.display var) (Typ.display ty) (Cls.display cls) (Term.display def) (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display body)
+     | LetcsBody0 (var, ty, cls, def, _clsout) ->
+       (* FIXME: get rid of clsout *)
+       Printf.sprintf "{0 let cs %s:%s@%s = %s in [] }"
+         (Var.display var) (Typ.display ty) (Cls.display cls) (Term.display def)
+     | Lift0 cls ->
+       Printf.sprintf "{0 lift@%s [] }" (Cls.display cls)
+     | Ref0 ->
+       "{0 ref [] }"
+     | Deref0 ->
+       "{0 ! [] }"
+     | AssignDest0 (newval, _renv, _cenv) ->
+       Printf.sprintf "{0 [] := (%s, %s |- %s) }" (RuntimeEnv.display_abbr _renv) (CodeEnv.display_abbr _cenv) (Term.display newval)
+     | AssignNewVal0 loc ->
+       Printf.sprintf "{0 %s := [] }" (Value.display loc)
+    )
+
+  let display_f (cont : t_f) : string =
+    (match cont with
+     | BinOpLf (op, r, renv, cenv) ->
+       Printf.sprintf "{f [] %s (%s, %s |- %s) }"
+         (BinOp.display op) (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display r)
+     | BinOpRf (op, l) ->
+       Printf.sprintf "{f %s %s [] }" (Term.display l) (BinOp.display op)
+     | UniOpf op ->
+       Printf.sprintf "{f %s [] }" (UniOp.display op)
+     | ShortCircuitOpLf (op, r, renv, cenv) ->
+       Printf.sprintf "{f [] %s (%s, %s |- %s) }"
+         (ShortCircuitOp.display op) (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display r)
+     | ShortCircuitOpRf (op, l) ->
+       Printf.sprintf "{f %s %s [] }" (Term.display l) (ShortCircuitOp.display op)
+     | Lamf (var, typ, cls) ->
+       Printf.sprintf "{f fn (%s : %s @ %s) -> [] }"
+         (Var.display var) (Typ.display typ) (Cls.display cls)
+     | AppLf (r, renv, cenv) ->
+       Printf.sprintf "{f [] (%s, %s |- %s) }"
+         (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display r)
+     | AppRf l ->
+       Printf.sprintf "{f %s [] }" (Term.display l)
+     | Quof cls ->
+       Printf.sprintf "{f `{@%s [] } }" (Cls.display cls)
+     | Unqf diff ->
+       Printf.sprintf "{f ~%d{ [] } }" diff
+     | PolyClsf (cls, base) ->
+       Printf.sprintf "{f fn (%s :> %s) -> [] }" (Cls.display cls) (Cls.display base)
+     | AppClsf cls ->
+       Printf.sprintf "{f [] @@ %s }" (Cls.display cls)
+     | Fixf (var, typ, cls) ->
+       Printf.sprintf "{f fix (%s : %s @ %s) -> [] }" (Var.display var) (Typ.display typ) (Cls.display cls)
+     | IfCondf (thenn, elsee, renv, cenv) ->
+       Printf.sprintf "{f if [] then (%s, %s |- %s) else (... |- %s) }"
+         (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display thenn) (Term.display elsee)
+     | IfThenf (cond, elsee, renv, cenv) ->
+       Printf.sprintf "{f if %s then [] else (%s, %s |- %s) }"
+         (Term.display cond) (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display elsee)
+     | IfElsef (cond, thenn) ->
+       Printf.sprintf "{f if %s then %s else [] }" (Term.display cond) (Term.display thenn)
+     | LetcsValf (var, ty, cls, body, renv, cenv) ->
+       Printf.sprintf "{f let cs %s:%s@%s = [] in (%s, %s |- %s) }"
+         (Var.display var) (Typ.display ty) (Cls.display cls) (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display body)
+     | LetcsBodyf (var, ty, cls, def) ->
+       Printf.sprintf "{f let cs %s:%s@%s = %s in [] }"
+         (Var.display var) (Typ.display ty) (Cls.display cls) (Term.display def)
+     | Liftf cls ->
+       Printf.sprintf "{f lift@%s [] }" (Cls.display cls)
+     | Reff ->
+       "{f ref [] }"
+     | Dereff ->
+       "{f ! [] }"
+     | AssignDestf (src, renv, cenv) ->
+       Printf.sprintf "{f [] := (%s, %s |- %s) }" (RuntimeEnv.display_abbr renv) (CodeEnv.display_abbr cenv) (Term.display src)
+     | AssignNewValf loc ->
+       Printf.sprintf "{f %s := [] }" (Term.display loc)
+    )
+
+  let display (conts : t list) : string =
+    (conts |> List.map ~f:(fun x ->
+        (match x with
+         | Runtime c0 -> display_0 c0
+         | Future cf -> display_f cf)
+       ) |> String.concat ~sep:" |> ")
+    ^ " |> exit"
 end
 
 module Config = struct
@@ -65,6 +176,28 @@ module Config = struct
   [@@deriving compare, equal, sexp]
 
   let init(tm:Term.t): t = EvalTerm(0, tm, [], [], [], [])
+
+  let display(config:t): string = (match config with
+      | EvalTerm (lv, exp, renv, cenv, conts, _store) ->
+        (Printf.sprintf "<@%d eval_exp\n" lv) ^
+        (Printf.sprintf "  exp:   %s\n" (Term.display exp)) ^
+        (Printf.sprintf "  renv:  %s\n" (RuntimeEnv.display renv Value.display 2)) ^
+        (Printf.sprintf "  cenv:  %s\n" (CodeEnv.display cenv 2)) ^
+        (Printf.sprintf "  conts: %s\n" (Cont.display conts)) ^
+        (Printf.sprintf "  store: ...\n") ^
+        ">"
+      | ApplyCont0 (conts, value, _store) ->
+        (Printf.sprintf "<@0 apply_cont\n") ^
+        (Printf.sprintf "  conts: %s\n" (Cont.display conts)) ^
+        (Printf.sprintf "  value: %s\n" (Value.display value)) ^
+        (Printf.sprintf "  store: ...\n") ^
+        ">"
+      | ApplyContf (lv, conts, value, _store) ->
+        (Printf.sprintf "<%d apply_cont\n" lv) ^
+        (Printf.sprintf "  conts: %s\n" (Cont.display conts)) ^
+        (Printf.sprintf "  value: %s\n" (Term.display value)) ^
+        (Printf.sprintf "  store: ...\n") ^
+        ">")
 end
 
 module StepResult = struct
@@ -75,8 +208,7 @@ end
 
 
 let describe (state: Config.t): unit =
-  Printf.sprintf !"State: %{sexp:Config.t}" state
-  |> Stdio.print_endline
+  state |> Config.display |> Stdio.print_endline
 
 let expand_eta (tm: Term.t)(ty: Typ.t): Term.t =
   (match ty with

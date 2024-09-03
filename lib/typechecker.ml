@@ -238,7 +238,8 @@ let%test_module "reachable_intuitionistic" = (module struct
 end)
 
 let type_error (tm: Term.t)(expect: Typ.t)(got: Typ.t): ('a, string) Result.t =
-  Result.fail (Printf.sprintf !"expected %{sexp:Term.t} to have type %{sexp:Typ.t}, but got %{sexp:Typ.t}" tm expect got)
+  Result.fail (Printf.sprintf "expected %s to have type %s, but got %s"
+                 (Term.display tm) (Typ.display expect) (Typ.display got))
 
 let type_error_form (tm: Term.t)(expect: string)(got: Typ.t): ('a, string) Result.t =
   Result.fail (Printf.sprintf !"expected %{sexp:Term.t} to have type %s, but got %{sexp:Typ.t}" tm expect got)
