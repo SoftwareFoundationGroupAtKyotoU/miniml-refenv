@@ -83,7 +83,9 @@ module Typ = struct
       else
         Code (base, ty1 |> rename_cls from dest)
     | PolyCls (cls, base, ty1) ->
-      if Cls.equal cls from || Cls.equal cls dest then
+      if Cls.equal cls from then
+        ty
+      else if Cls.equal cls dest then
         failwith "unreachable: cls should be fresh"
       else if Cls.equal from base then
         PolyCls(cls, dest, ty1 |> rename_cls from dest)
